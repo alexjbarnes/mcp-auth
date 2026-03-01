@@ -1,6 +1,7 @@
 package mcpauth
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
+
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
@@ -43,7 +45,8 @@ func TestMigrate_TracksVersion(t *testing.T) {
 	require.NoError(t, CreateTables(db))
 
 	var version int
-	err := db.QueryRow(`SELECT version FROM mcpauth_schema_version`).Scan(&version)
+
+	err := db.QueryRowContext(context.Background(), `SELECT version FROM mcpauth_schema_version`).Scan(&version)
 	require.NoError(t, err)
 	assert.Equal(t, schemaVersion, version)
 }

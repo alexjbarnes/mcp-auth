@@ -24,6 +24,7 @@ func CreateBoltBuckets(db *bolt.DB) error {
 				return fmt.Errorf("mcpauth: creating bucket %s: %w", name, err)
 			}
 		}
+
 		return nil
 	})
 }
@@ -71,7 +72,9 @@ func (p *boltPersistence) AllOAuthTokens() ([]OAuthToken, error) {
 			if err := json.Unmarshal(v, &t); err != nil {
 				return fmt.Errorf("unmarshaling token %s: %w", k, err)
 			}
+
 			tokens = append(tokens, t)
+
 			return nil
 		})
 	})
@@ -105,7 +108,9 @@ func (p *boltPersistence) AllOAuthClients() ([]OAuthClient, error) {
 			if err := json.Unmarshal(v, &c); err != nil {
 				return fmt.Errorf("unmarshaling client %s: %w", k, err)
 			}
+
 			clients = append(clients, c)
+
 			return nil
 		})
 	})
@@ -139,7 +144,9 @@ func (p *boltPersistence) AllAPIKeys() (map[string]APIKey, error) {
 			if err := json.Unmarshal(v, &ak); err != nil {
 				return fmt.Errorf("unmarshaling api key %s: %w", k, err)
 			}
+
 			keys[string(k)] = ak
+
 			return nil
 		})
 	})

@@ -1,6 +1,7 @@
 package mcpauth
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -48,7 +49,7 @@ var migrations = map[int][]string{
 // the version tracking table if needed, then applies any pending
 // migrations in order.
 func migrate(db *sql.DB) error {
-	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS mcpauth_schema_version (
+	_, err := db.ExecContext(context.Background(), `CREATE TABLE IF NOT EXISTS mcpauth_schema_version (
 		version INTEGER NOT NULL
 	)`)
 	if err != nil {
@@ -57,7 +58,7 @@ func migrate(db *sql.DB) error {
 
 	var current int
 
-	row := db.QueryRow(`SELECT version FROM mcpauth_schema_version LIMIT 1`)
+	row := db.QueryRowContext(context.Background(), `SELECT version FROM mcpauth_schema_version LIMIT 1`)
 	if err := row.Scan(&current); err != nil {
 		// No row means fresh install, start from 0.
 		current = 0
@@ -70,16 +71,16 @@ func migrate(db *sql.DB) error {
 		}
 
 		for _, stmt := range stmts {
-			if _, err := db.Exec(stmt); err != nil {
+			if _, err := db.ExecContext(context.Background(), stmt); err != nil {
 				return fmt.Errorf("mcpauth: migration %d failed: %w", v, err)
 			}
 		}
 	}
 
 	if current == 0 {
-		_, err = db.Exec(`INSERT INTO mcpauth_schema_version (version) VALUES (?)`, schemaVersion)
+		_, err = db.ExecContext(context.Background(), `INSERT INTO mcpauth_schema_version (version) VALUES (?)`, schemaVersion)
 	} else if current < schemaVersion {
-		_, err = db.Exec(`UPDATE mcpauth_schema_version SET version = ?`, schemaVersion)
+		_, err = db.ExecContext(context.Background(), `UPDATE mcpauth_schema_version SET version = ?`, schemaVersion)
 	}
 
 	if err != nil {
@@ -125,7 +126,7 @@ func (p *sqlitePersistence) SaveOAuthToken(t OAuthToken) error {
 		return fmt.Errorf("marshaling scopes: %w", err)
 	}
 
-	_, err = p.db.Exec(
+	_, err = p.db.ExecContext(context.Background(),
 		`INSERT OR REPLACE INTO mcpauth_tokens
 			(token_hash, kind, user_id, client_id, resource, scopes, expires_at, refresh_hash)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -139,12 +140,12 @@ func (p *sqlitePersistence) SaveOAuthToken(t OAuthToken) error {
 }
 
 func (p *sqlitePersistence) DeleteOAuthToken(tokenHash string) error {
-	_, err := p.db.Exec(`DELETE FROM mcpauth_tokens WHERE token_hash = ?`, tokenHash)
+	_, err := p.db.ExecContext(context.Background(), `DELETE FROM mcpauth_tokens WHERE token_hash = ?`, tokenHash)
 	return err
 }
 
 func (p *sqlitePersistence) AllOAuthTokens() ([]OAuthToken, error) {
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(context.Background(),
 		`SELECT token_hash, kind, user_id, client_id, resource, scopes, expires_at, refresh_hash
 		FROM mcpauth_tokens`)
 	if err != nil {
@@ -199,7 +200,7 @@ func (p *sqlitePersistence) SaveOAuthClient(c OAuthClient) error {
 		return fmt.Errorf("marshaling response_types: %w", err)
 	}
 
-	_, err = p.db.Exec(
+	_, err = p.db.ExecContext(context.Background(),
 		`INSERT OR REPLACE INTO mcpauth_clients
 			(client_id, client_name, redirect_uris, grant_types, response_types,
 			 token_endpoint_auth_method, secret_hash, issued_at, user_id)
@@ -213,12 +214,12 @@ func (p *sqlitePersistence) SaveOAuthClient(c OAuthClient) error {
 }
 
 func (p *sqlitePersistence) DeleteOAuthClient(clientID string) error {
-	_, err := p.db.Exec(`DELETE FROM mcpauth_clients WHERE client_id = ?`, clientID)
+	_, err := p.db.ExecContext(context.Background(), `DELETE FROM mcpauth_clients WHERE client_id = ?`, clientID)
 	return err
 }
 
 func (p *sqlitePersistence) AllOAuthClients() ([]OAuthClient, error) {
-	rows, err := p.db.Query(
+	rows, err := p.db.QueryContext(context.Background(),
 		`SELECT client_id, client_name, redirect_uris, grant_types, response_types,
 			token_endpoint_auth_method, secret_hash, issued_at, user_id
 		FROM mcpauth_clients`)
@@ -268,7 +269,7 @@ func (p *sqlitePersistence) AllOAuthClients() ([]OAuthClient, error) {
 }
 
 func (p *sqlitePersistence) SaveAPIKey(hash string, key APIKey) error {
-	_, err := p.db.Exec(
+	_, err := p.db.ExecContext(context.Background(),
 		`INSERT OR REPLACE INTO mcpauth_api_keys (key_hash, user_id, created_at)
 		VALUES (?, ?, ?)`,
 		hash, key.UserID, key.CreatedAt.UTC().Format(time.RFC3339),
@@ -278,12 +279,12 @@ func (p *sqlitePersistence) SaveAPIKey(hash string, key APIKey) error {
 }
 
 func (p *sqlitePersistence) DeleteAPIKey(hash string) error {
-	_, err := p.db.Exec(`DELETE FROM mcpauth_api_keys WHERE key_hash = ?`, hash)
+	_, err := p.db.ExecContext(context.Background(), `DELETE FROM mcpauth_api_keys WHERE key_hash = ?`, hash)
 	return err
 }
 
 func (p *sqlitePersistence) AllAPIKeys() (map[string]APIKey, error) {
-	rows, err := p.db.Query(`SELECT key_hash, user_id, created_at FROM mcpauth_api_keys`)
+	rows, err := p.db.QueryContext(context.Background(), `SELECT key_hash, user_id, created_at FROM mcpauth_api_keys`)
 	if err != nil {
 		return nil, err
 	}

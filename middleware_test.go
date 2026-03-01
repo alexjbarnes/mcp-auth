@@ -29,6 +29,7 @@ func TestMiddleware_ValidToken(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer valid-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -66,6 +67,7 @@ func TestMiddleware_InvalidToken(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer unknown-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -93,6 +95,7 @@ func TestMiddleware_ExpiredToken(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer expired-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -112,6 +115,7 @@ func TestMiddleware_NonBearerAuth(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Basic foo:bar")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -133,10 +137,12 @@ func TestMiddleware_InjectsRequestContext(t *testing.T) {
 	s.SaveToken(token)
 
 	var capturedUserID, capturedClientID, capturedIP string
+
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedUserID = RequestUserID(r.Context())
 		capturedClientID = RequestClientID(r.Context())
 		capturedIP = RequestRemoteIP(r.Context())
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -170,6 +176,7 @@ func TestMiddleware_ExpiredTokenHeader(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer expired-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -198,6 +205,7 @@ func TestMiddleware_RefreshTokenAsBearer(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer refresh-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -226,6 +234,7 @@ func TestMiddleware_WrongResourceOnToken(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer token-wrong-resource")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -248,6 +257,7 @@ func TestMiddleware_APIKey_Valid(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer vs_testkey123")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -266,6 +276,7 @@ func TestMiddleware_APIKey_Invalid(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer vs_wrongkey")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -288,6 +299,7 @@ func TestMiddleware_APIKey_RevokedReturns401(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer vs_testkey123")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -301,6 +313,7 @@ func TestMiddleware_APIKey_DoesNotAffectOAuthTokens(t *testing.T) {
 
 	// Register both API key and OAuth token
 	s.RegisterAPIKey("vs_testkey123", "apiuser")
+
 	token := &OAuthToken{
 		Token:     "oauth-token",
 		Kind:      "access",
@@ -317,6 +330,7 @@ func TestMiddleware_APIKey_DoesNotAffectOAuthTokens(t *testing.T) {
 	// Test OAuth token still works
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer oauth-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -332,13 +346,16 @@ func TestMiddleware_APIKey_ClientIDMatchesUserID(t *testing.T) {
 	s.RegisterAPIKey("vs_testkey123", "apiuser")
 
 	var capturedClientID string
+
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedClientID = RequestClientID(r.Context())
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer vs_testkey123")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -359,15 +376,19 @@ func TestMiddleware_TrustedProxyHeader(t *testing.T) {
 	})
 
 	mw := authMiddleware(s, testLogger(), testServerURL, "", "X-Forwarded-For", nil)
+
 	var capturedIP string
+
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedIP = RequestRemoteIP(r.Context())
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer proxy-token")
 	req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -386,9 +407,12 @@ func TestMiddleware_NoProxyHeaderFallsBack(t *testing.T) {
 	})
 
 	mw := authMiddleware(s, testLogger(), testServerURL, "", "X-Forwarded-For", nil)
+
 	var capturedIP string
+
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedIP = RequestRemoteIP(r.Context())
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -436,6 +460,7 @@ func TestMiddleware_AccountChecker_ActiveUser(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer active-user-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -464,6 +489,7 @@ func TestMiddleware_AccountChecker_DisabledUser(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer disabled-user-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -488,6 +514,7 @@ func TestMiddleware_AccountChecker_DisabledAPIKeyUser(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer vs_disabled_key")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -512,6 +539,7 @@ func TestMiddleware_NoAccountChecker_SkipsCheck(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer no-checker-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -538,6 +566,7 @@ func TestMiddleware_PlainUserAuth_SkipsAccountCheck(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/mcp", nil)
 	req.Header.Set("Authorization", "Bearer plain-auth-token")
+
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)

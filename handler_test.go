@@ -28,6 +28,7 @@ func TestProtectedResourceMetadata(t *testing.T) {
 	assert.Equal(t, "public, max-age=3600", rec.Header().Get("Cache-Control"))
 
 	var meta ProtectedResourceMetadata
+
 	err := json.NewDecoder(rec.Body).Decode(&meta)
 	require.NoError(t, err)
 	assert.Equal(t, testServerURL, meta.Resource)
@@ -45,6 +46,7 @@ func TestServerMetadata(t *testing.T) {
 	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
 
 	var meta ServerMetadata
+
 	err := json.NewDecoder(rec.Body).Decode(&meta)
 	require.NoError(t, err)
 	assert.Equal(t, testServerURL, meta.Issuer)
@@ -114,6 +116,7 @@ func TestMetadata_IncludesClientCredentials(t *testing.T) {
 	handler(rec, req)
 
 	var meta ServerMetadata
+
 	err := json.NewDecoder(rec.Body).Decode(&meta)
 	require.NoError(t, err)
 	assert.Contains(t, meta.GrantTypesSupported, "client_credentials")
@@ -127,6 +130,7 @@ func TestMetadata_IncludesBasicAuth(t *testing.T) {
 	handler(rec, req)
 
 	var meta ServerMetadata
+
 	err := json.NewDecoder(rec.Body).Decode(&meta)
 	require.NoError(t, err)
 	assert.Contains(t, meta.TokenEndpointAuthMethodsSupported, "client_secret_basic")
@@ -140,6 +144,7 @@ func TestServerMetadata_RefreshTokenGrant(t *testing.T) {
 	handler(rec, req)
 
 	var meta ServerMetadata
+
 	err := json.NewDecoder(rec.Body).Decode(&meta)
 	require.NoError(t, err)
 	assert.Contains(t, meta.GrantTypesSupported, "refresh_token")
@@ -159,6 +164,7 @@ func TestRegistration_Success(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -166,6 +172,7 @@ func TestRegistration_Success(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, rec.Code)
 
 	var resp registrationResponse
+
 	err := json.NewDecoder(rec.Body).Decode(&resp)
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp.ClientID)
@@ -189,6 +196,7 @@ func TestRegistration_MissingRedirectURIs(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -214,6 +222,7 @@ func TestToken_ClientCredentials_UsesClientUserID(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -221,7 +230,7 @@ func TestToken_ClientCredentials_UsesClientUserID(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	require.NotEmpty(t, resp.AccessToken)
 
 	tok := s.ValidateToken(resp.AccessToken)
@@ -247,6 +256,7 @@ func TestToken_ClientCredentials_FallsBackToClientID(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -254,7 +264,7 @@ func TestToken_ClientCredentials_FallsBackToClientID(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	tok := s.ValidateToken(resp.AccessToken)
 	require.NotNil(t, tok)
@@ -284,6 +294,7 @@ func TestToken_ClientCredentials_DisabledUser(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -291,7 +302,7 @@ func TestToken_ClientCredentials_DisabledUser(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
 	var errResp map[string]string
-	json.NewDecoder(rec.Body).Decode(&errResp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
 	assert.Equal(t, "invalid_grant", errResp["error"])
 	assert.Contains(t, errResp["error_description"], "disabled")
 }
@@ -319,6 +330,7 @@ func TestToken_ClientCredentials_ActiveUser(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -390,6 +402,7 @@ func TestToken_AuthCodeExchange_ActiveUser(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -397,7 +410,7 @@ func TestToken_AuthCodeExchange_ActiveUser(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.NotEmpty(t, resp.AccessToken)
 	assert.NotEmpty(t, resp.RefreshToken)
 }
@@ -430,6 +443,7 @@ func TestToken_RefreshToken_DisabledUser(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -437,7 +451,7 @@ func TestToken_RefreshToken_DisabledUser(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
 	var errResp map[string]string
-	json.NewDecoder(rec.Body).Decode(&errResp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
 	assert.Equal(t, "invalid_grant", errResp["error"])
 	assert.Contains(t, errResp["error_description"], "disabled")
 }
@@ -470,6 +484,7 @@ func TestToken_RefreshToken_ActiveUser(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -477,7 +492,7 @@ func TestToken_RefreshToken_ActiveUser(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.NotEmpty(t, resp.AccessToken)
 	assert.NotEmpty(t, resp.RefreshToken)
 }
@@ -510,6 +525,7 @@ func TestToken_AuthCodeExchange_NoCheckerSkipsCheck(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -546,6 +562,7 @@ func TestToken_AuthCodeExchange_PlainUsersNoChecker(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -584,6 +601,7 @@ func TestToken_AuthCodeReplayRevokesTokens(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
@@ -600,6 +618,7 @@ func TestToken_AuthCodeReplayRevokesTokens(t *testing.T) {
 	// Second exchange with the same code triggers replay detection.
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 	handler(rec2, req2)
 
@@ -640,6 +659,7 @@ func TestToken_AuthCodeReplayWrongClientNoRevoke(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -652,6 +672,7 @@ func TestToken_AuthCodeReplayWrongClientNoRevoke(t *testing.T) {
 	form.Set("client_id", "attacker")
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 	handler(rec2, req2)
 
@@ -680,6 +701,7 @@ func TestRegistration_ClientLimitReached(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -698,6 +720,7 @@ func TestRegistration_RejectsHTTPRedirectURI(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -716,6 +739,7 @@ func TestRegistration_AllowsHTTPLoopback(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -734,6 +758,7 @@ func TestRegistration_RejectsHTTPLocalhost(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -753,6 +778,7 @@ func TestRegistration_RejectsImplicitGrant(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -773,6 +799,7 @@ func TestRegistration_RejectsPasswordGrant(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -792,6 +819,7 @@ func TestRegistration_BlocksClientCredentials(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -811,6 +839,7 @@ func TestRegistration_BlocksClientCredentialsMixed(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -830,12 +859,13 @@ func TestRegistration_StoresGrantTypes(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp registrationResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	client := s.GetClient(resp.ClientID)
 	require.NotNil(t, client)
@@ -854,6 +884,7 @@ func TestRegistration_AllowsRefreshTokenGrant(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -873,12 +904,13 @@ func TestRegistration_ConfidentialClientGetsSecret(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp registrationResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.NotEmpty(t, resp.ClientSecret)
 }
 
@@ -894,12 +926,13 @@ func TestRegistration_PublicClientNoSecret(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp registrationResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Empty(t, resp.ClientSecret)
 }
 
@@ -914,13 +947,14 @@ func TestRegistration_ClientIDIssuedAt(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp registrationResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
-	assert.Greater(t, resp.ClientIDIssuedAt, int64(0))
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Positive(t, resp.ClientIDIssuedAt)
 }
 
 func TestRegistration_PersistsResponseTypesAndAuthMethod(t *testing.T) {
@@ -935,12 +969,13 @@ func TestRegistration_PersistsResponseTypesAndAuthMethod(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp registrationResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.NotEmpty(t, resp.ResponseTypes)
 	assert.Equal(t, "client_secret_basic", resp.TokenEndpointAuthMethod)
 }
@@ -956,6 +991,7 @@ func TestRegistration_RejectsWrongContentType(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "text/plain")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -993,12 +1029,13 @@ func TestRegistration_ClientSecretExpiresAt(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp registrationResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	require.NotNil(t, resp.ClientSecretExpiresAt)
 	assert.Equal(t, int64(0), *resp.ClientSecretExpiresAt)
 }
@@ -1015,12 +1052,13 @@ func TestRegistration_NoSecretExpiresAt_WhenAuthMethodNone(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/register", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp registrationResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Nil(t, resp.ClientSecretExpiresAt)
 }
 
@@ -1219,6 +1257,7 @@ func TestAuthorize_POST_ValidLogin(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1249,6 +1288,7 @@ func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1257,6 +1297,7 @@ func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
 	location := rec.Header().Get("Location")
 	u, err := url.Parse(location)
 	require.NoError(t, err)
+
 	code := u.Query().Get("code")
 	require.NotEmpty(t, code)
 
@@ -1287,6 +1328,7 @@ func TestAuthorize_POST_StateURLEncoded(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1317,6 +1359,7 @@ func TestAuthorize_POST_RedirectURIWithQueryParams(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1347,6 +1390,7 @@ func TestAuthorize_POST_InvalidPassword(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1374,6 +1418,7 @@ func TestAuthorize_POST_InvalidRedirectURI(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1398,6 +1443,7 @@ func TestAuthorize_POST_MissingCSRF(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1422,6 +1468,7 @@ func TestAuthorize_POST_MissingPKCE(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1452,6 +1499,7 @@ func TestAuthorize_POST_RateLimited(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 		rec := httptest.NewRecorder()
 
 		handler(rec, req)
@@ -1483,6 +1531,7 @@ func TestAuthorize_POST_IssInResponse(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1513,6 +1562,7 @@ func TestAuthorize_POST_ResourceBindsToCode(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1520,6 +1570,7 @@ func TestAuthorize_POST_ResourceBindsToCode(t *testing.T) {
 	location := rec.Header().Get("Location")
 	u, err := url.Parse(location)
 	require.NoError(t, err)
+
 	code := u.Query().Get("code")
 
 	// Verify code has resource bound
@@ -1556,6 +1607,7 @@ func TestToken_FullFlow(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1564,6 +1616,7 @@ func TestToken_FullFlow(t *testing.T) {
 	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 
 	var resp tokenResponse
+
 	err := json.NewDecoder(rec.Body).Decode(&resp)
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp.AccessToken)
@@ -1585,6 +1638,7 @@ func TestToken_InvalidCode(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1603,6 +1657,7 @@ func TestToken_WrongGrantType(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1635,6 +1690,7 @@ func TestToken_PKCEVerificationFails(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1666,6 +1722,7 @@ func TestToken_MissingPKCE(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1695,6 +1752,7 @@ func TestToken_NoPKCEOnCode(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1728,6 +1786,7 @@ func TestToken_RedirectURIMismatch(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1762,6 +1821,7 @@ func TestToken_AuthCodeClientIDMismatch(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1797,6 +1857,7 @@ func TestToken_JSONBody(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1830,12 +1891,13 @@ func TestToken_FullFlowWithRefresh(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	refreshToken := resp.RefreshToken
 
 	// Use refresh token
@@ -1846,6 +1908,7 @@ func TestToken_FullFlowWithRefresh(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -1853,7 +1916,7 @@ func TestToken_FullFlowWithRefresh(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec2.Code)
 
 	var resp2 tokenResponse
-	json.NewDecoder(rec2.Body).Decode(&resp2)
+	require.NoError(t, json.NewDecoder(rec2.Body).Decode(&resp2))
 	assert.NotEmpty(t, resp2.AccessToken)
 	assert.NotEmpty(t, resp2.RefreshToken)
 }
@@ -1886,6 +1949,7 @@ func TestToken_ResourceParameter(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1921,6 +1985,7 @@ func TestToken_WrongResourceParameter(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1955,12 +2020,13 @@ func TestToken_ScopeInResponse(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "read write", resp.Scope)
 }
 
@@ -1990,6 +2056,7 @@ func TestToken_PragmaNoCache(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2025,12 +2092,13 @@ func TestToken_RefreshGrant(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	form2 := url.Values{}
 	form2.Set("grant_type", "refresh_token")
@@ -2039,6 +2107,7 @@ func TestToken_RefreshGrant(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2072,12 +2141,13 @@ func TestToken_RefreshRotation(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	oldRefreshToken := resp.RefreshToken
 
 	form2 := url.Values{}
@@ -2087,12 +2157,13 @@ func TestToken_RefreshRotation(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
 
 	var resp2 tokenResponse
-	json.NewDecoder(rec2.Body).Decode(&resp2)
+	require.NoError(t, json.NewDecoder(rec2.Body).Decode(&resp2))
 	newRefreshToken := resp2.RefreshToken
 
 	assert.NotEqual(t, oldRefreshToken, newRefreshToken)
@@ -2105,6 +2176,7 @@ func TestToken_RefreshRotation(t *testing.T) {
 
 	req3 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form3.Encode()))
 	req3.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec3 := httptest.NewRecorder()
 
 	handler(rec3, req3)
@@ -2133,6 +2205,7 @@ func TestToken_RefreshExpired(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2167,12 +2240,13 @@ func TestToken_RefreshWrongClient(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	form2 := url.Values{}
 	form2.Set("grant_type", "refresh_token")
@@ -2181,6 +2255,7 @@ func TestToken_RefreshWrongClient(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2216,12 +2291,13 @@ func TestToken_RefreshWrongResource(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	form2 := url.Values{}
 	form2.Set("grant_type", "refresh_token")
@@ -2231,6 +2307,7 @@ func TestToken_RefreshWrongResource(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2249,6 +2326,7 @@ func TestToken_RefreshMissingToken(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2282,12 +2360,13 @@ func TestToken_RefreshWithoutClientID(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	form2 := url.Values{}
 	form2.Set("grant_type", "refresh_token")
@@ -2295,6 +2374,7 @@ func TestToken_RefreshWithoutClientID(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2328,12 +2408,13 @@ func TestToken_RefreshDeletesOldAccessToken(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	oldAccessToken := resp.AccessToken
 	refreshToken := resp.RefreshToken
 
@@ -2349,6 +2430,7 @@ func TestToken_RefreshDeletesOldAccessToken(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2384,12 +2466,13 @@ func TestToken_AccessTokenUsedAsRefresh(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	form2 := url.Values{}
 	form2.Set("grant_type", "refresh_token")
@@ -2398,6 +2481,7 @@ func TestToken_AccessTokenUsedAsRefresh(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2431,12 +2515,13 @@ func TestToken_RefreshTokenReuseFails(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	refreshToken := resp.RefreshToken
 
 	form2 := url.Values{}
@@ -2446,6 +2531,7 @@ func TestToken_RefreshTokenReuseFails(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2455,6 +2541,7 @@ func TestToken_RefreshTokenReuseFails(t *testing.T) {
 	// Try to reuse the same refresh token
 	req3 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req3.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec3 := httptest.NewRecorder()
 
 	handler(rec3, req3)
@@ -2478,6 +2565,7 @@ func TestClientCredentials_Success(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2485,7 +2573,7 @@ func TestClientCredentials_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.NotEmpty(t, resp.AccessToken)
 	assert.Empty(t, resp.RefreshToken)
 }
@@ -2504,6 +2592,7 @@ func TestClientCredentials_WrongSecret(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2524,6 +2613,7 @@ func TestClientCredentials_MissingSecret(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2541,6 +2631,7 @@ func TestClientCredentials_MissingClientID(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2559,6 +2650,7 @@ func TestClientCredentials_UnknownClient(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2578,6 +2670,7 @@ func TestClientCredentials_DynamicClientCannotUse(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2600,6 +2693,7 @@ func TestClientCredentials_WithResource(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2622,6 +2716,7 @@ func TestClientCredentials_WrongResource(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2645,6 +2740,7 @@ func TestClientCredentials_JSONBody(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2668,6 +2764,7 @@ func TestClientCredentials_JSONBodyWithCharset(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2689,12 +2786,13 @@ func TestClientCredentials_TokenUsableAsBearer(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	tokenHandler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	// Use token in middleware
 	middleware := authMiddleware(s, testLogger(), testServerURL, "", "", nil)
@@ -2704,6 +2802,7 @@ func TestClientCredentials_TokenUsableAsBearer(t *testing.T) {
 
 	req2 := httptest.NewRequest("GET", "/protected", nil)
 	req2.Header.Set("Authorization", "Bearer "+resp.AccessToken)
+
 	rec2 := httptest.NewRecorder()
 
 	protectedHandler.ServeHTTP(rec2, req2)
@@ -2725,12 +2824,13 @@ func TestClientCredentials_NoRefreshToken(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Empty(t, resp.RefreshToken)
 }
 
@@ -2747,6 +2847,7 @@ func TestClientCredentials_BasicAuth(t *testing.T) {
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(clientID, secret)
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2769,6 +2870,7 @@ func TestClientCredentials_BasicAuthOverridesBody(t *testing.T) {
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(clientID, secret)
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2789,6 +2891,7 @@ func TestClientCredentials_BasicAuthWrongPassword(t *testing.T) {
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(clientID, "wrong-secret")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2810,6 +2913,7 @@ func TestToken_GrantTypeEnforcement(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2843,6 +2947,7 @@ func TestToken_DefaultGrantTypeAllowsAuthCode(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -2876,12 +2981,13 @@ func TestToken_RefreshAlwaysAllowed(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	var resp tokenResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 
 	form2 := url.Values{}
 	form2.Set("grant_type", "refresh_token")
@@ -2890,6 +2996,7 @@ func TestToken_RefreshAlwaysAllowed(t *testing.T) {
 
 	req2 := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form2.Encode()))
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec2 := httptest.NewRecorder()
 
 	handler(rec2, req2)
@@ -2914,13 +3021,15 @@ func TestToken_IPRateLimit(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 		rec := httptest.NewRecorder()
 
 		handler(rec, req)
 
-		if i < 5 {
+		switch {
+		case i < 5:
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
-		} else {
+		default:
 			assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 		}
 	}
@@ -2941,15 +3050,15 @@ func TestToken_ClientLockout(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 		rec := httptest.NewRecorder()
 
 		handler(rec, req)
 
-		if i < 5 {
+		switch {
+		case i < 5:
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
-		} else if i < 10 {
-			assert.Equal(t, http.StatusTooManyRequests, rec.Code)
-		} else {
+		default:
 			assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 		}
 	}
@@ -2962,6 +3071,7 @@ func TestPreConfigured_AuthorizeEndpointRejected(t *testing.T) {
 	clientID := "preconfigured-client"
 	secret := "super-secret"
 	registerPreConfiguredClient(t, s, clientID, secret)
+
 	users := testUsers{"testuser": "password123"}
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
@@ -3002,6 +3112,7 @@ func TestPreConfigured_AuthCodeFlowRejected(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)

@@ -15,7 +15,7 @@ import (
 func openTestBolt(t *testing.T) *bolt.DB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
-	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 1 * time.Second})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		db.Close()

@@ -24,8 +24,10 @@ func testLogger() *slog.Logger {
 
 func testStore(t *testing.T) *store {
 	t.Helper()
+
 	s := newStore(nil, testLogger(), nil)
 	t.Cleanup(s.stop)
+
 	return s
 }
 
@@ -36,12 +38,14 @@ func pkceChallenge(verifier string) string {
 
 func registerTestClient(t *testing.T, s *store, redirectURIs []string) string {
 	t.Helper()
+
 	clientID := RandomHex(16)
 	ok := s.RegisterClient(&OAuthClient{
 		ClientID:     clientID,
 		RedirectURIs: redirectURIs,
 	})
 	require.True(t, ok)
+
 	return clientID
 }
 
@@ -60,6 +64,7 @@ func (u testUsers) ValidateCredentials(_ context.Context, username, password str
 	if pass, ok := u[username]; ok && pass == password {
 		return username, nil
 	}
+
 	return "", nil
 }
 
@@ -67,14 +72,17 @@ const testServerURL = "https://vault.example.com"
 
 func getCSRFToken(t *testing.T, handler http.HandlerFunc, clientID, redirectURI string) string {
 	t.Helper()
+
 	challenge := pkceChallenge("test-verifier")
 	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri="+url.QueryEscape(redirectURI)+"&code_challenge="+challenge+"&code_challenge_method=S256", nil)
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
+
 	re := regexp.MustCompile(`name="csrf_token" value="([a-f0-9]+)"`)
 	matches := re.FindStringSubmatch(rec.Body.String())
 	require.Len(t, matches, 2, "CSRF token not found in form")
+
 	return matches[1]
 }
 
@@ -109,6 +117,7 @@ func (m *mockPersist) AllOAuthTokens() ([]OAuthToken, error) {
 	for _, t := range m.tokens {
 		out = append(out, t)
 	}
+
 	return out, nil
 }
 
@@ -127,6 +136,7 @@ func (m *mockPersist) AllOAuthClients() ([]OAuthClient, error) {
 	for _, c := range m.clients {
 		out = append(out, c)
 	}
+
 	return out, nil
 }
 
@@ -145,6 +155,7 @@ func (m *mockPersist) AllAPIKeys() (map[string]APIKey, error) {
 	for k, v := range m.apiKeys {
 		out[k] = v
 	}
+
 	return out, nil
 }
 
@@ -515,7 +526,7 @@ func TestStore_ReconcileAPIKeys_EmptyConfigPurgesAll(t *testing.T) {
 	assert.Equal(t, 2, removed)
 
 	keys := s.ListAPIKeys()
-	assert.Len(t, keys, 0)
+	assert.Empty(t, keys)
 }
 
 func TestStore_ReconcileClients_RemovesStale(t *testing.T) {
@@ -605,6 +616,7 @@ func TestStore_ValidateRefreshToken_RejectsAccessToken(t *testing.T) {
 	s.SaveToken(token)
 
 	s.mu.RLock()
+
 	tokenHash := HashSecret("access-token")
 	retrieved := s.validateRefreshTokenLocked(tokenHash, "", "")
 	s.mu.RUnlock()
@@ -668,6 +680,7 @@ func TestRegistrationAllowed_PrunesOldEntries(t *testing.T) {
 	for _, regTime := range s.registrationTimes {
 		assert.True(t, time.Now().Add(-1*time.Minute).Before(regTime))
 	}
+
 	s.mu.RUnlock()
 }
 
@@ -938,20 +951,20 @@ func TestLoadFromDisk_TokensClientsAPIKeys(t *testing.T) {
 		UserID:    "user1",
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
-	persist.SaveOAuthToken(token)
+	require.NoError(t, persist.SaveOAuthToken(token))
 
 	client := OAuthClient{
 		ClientID:     "client1",
 		RedirectURIs: []string{"https://example.com/callback"},
 	}
-	persist.SaveOAuthClient(client)
+	require.NoError(t, persist.SaveOAuthClient(client))
 
 	apiKey := APIKey{
 		KeyHash:   HashSecret("key1"),
 		UserID:    "user1",
 		CreatedAt: time.Now(),
 	}
-	persist.SaveAPIKey(HashSecret("key1"), apiKey)
+	require.NoError(t, persist.SaveAPIKey(HashSecret("key1"), apiKey))
 
 	// Create new store with persist
 	s := newStore(persist, testLogger(), nil)
@@ -975,7 +988,7 @@ func TestLoadFromDisk_ExpiredTokensDeleted(t *testing.T) {
 		UserID:    "user1",
 		ExpiresAt: time.Now().Add(-1 * time.Minute),
 	}
-	persist.SaveOAuthToken(token)
+	require.NoError(t, persist.SaveOAuthToken(token))
 
 	// Create new store
 	s := newStore(persist, testLogger(), nil)
@@ -983,12 +996,12 @@ func TestLoadFromDisk_ExpiredTokensDeleted(t *testing.T) {
 
 	// Verify not loaded
 	s.mu.RLock()
-	assert.Len(t, s.tokens, 0)
+	assert.Empty(t, s.tokens)
 	s.mu.RUnlock()
 
 	// Verify deleted from persist
 	tokens, _ := persist.AllOAuthTokens()
-	assert.Len(t, tokens, 0)
+	assert.Empty(t, tokens)
 }
 
 func TestLoadFromDisk_EmptyTokenHashSkipped(t *testing.T) {
@@ -1001,7 +1014,7 @@ func TestLoadFromDisk_EmptyTokenHashSkipped(t *testing.T) {
 		UserID:    "user1",
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
-	persist.SaveOAuthToken(token)
+	require.NoError(t, persist.SaveOAuthToken(token))
 
 	// Create new store
 	s := newStore(persist, testLogger(), nil)
@@ -1009,7 +1022,7 @@ func TestLoadFromDisk_EmptyTokenHashSkipped(t *testing.T) {
 
 	// Verify not loaded
 	s.mu.RLock()
-	assert.Len(t, s.tokens, 0)
+	assert.Empty(t, s.tokens)
 	s.mu.RUnlock()
 }
 
@@ -1026,7 +1039,7 @@ func TestLoadFromDisk_RefreshHashBackwardCompat(t *testing.T) {
 		RefreshHash:  "",
 		ExpiresAt:    time.Now().Add(1 * time.Hour),
 	}
-	persist.SaveOAuthToken(token)
+	require.NoError(t, persist.SaveOAuthToken(token))
 
 	// Create new store
 	s := newStore(persist, testLogger(), nil)
@@ -1052,7 +1065,7 @@ func TestLoadFromDisk_MigratesLegacyTokens(t *testing.T) {
 		UserID:    "user1",
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
-	persist.SaveOAuthToken(token)
+	require.NoError(t, persist.SaveOAuthToken(token))
 
 	// Create new store
 	s := newStore(persist, testLogger(), nil)
@@ -1070,6 +1083,7 @@ func TestLoadFromDisk_MigratesLegacyTokens(t *testing.T) {
 
 func TestRegisterPreConfiguredClient_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1085,6 +1099,7 @@ func TestRegisterPreConfiguredClient_WithPersist(t *testing.T) {
 
 func TestRegisterClient_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1100,6 +1115,7 @@ func TestRegisterClient_WithPersist(t *testing.T) {
 
 func TestRegisterAPIKey_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1112,6 +1128,7 @@ func TestRegisterAPIKey_WithPersist(t *testing.T) {
 
 func TestRevokeAPIKey_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1122,11 +1139,12 @@ func TestRevokeAPIKey_WithPersist(t *testing.T) {
 	s.RevokeAPIKey(keyHash)
 
 	keys, _ := persist.AllAPIKeys()
-	assert.Len(t, keys, 0)
+	assert.Empty(t, keys)
 }
 
 func TestReconcileAPIKeys_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1149,6 +1167,7 @@ func TestReconcileAPIKeys_WithPersist(t *testing.T) {
 
 func TestSaveToken_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1167,6 +1186,7 @@ func TestSaveToken_WithPersist(t *testing.T) {
 
 func TestCleanup_WithPersist_DeletesExpiredTokens(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1182,11 +1202,12 @@ func TestCleanup_WithPersist_DeletesExpiredTokens(t *testing.T) {
 	s.cleanup()
 
 	tokens, _ := persist.AllOAuthTokens()
-	assert.Len(t, tokens, 0)
+	assert.Empty(t, tokens)
 }
 
 func TestDeleteToken_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1204,11 +1225,12 @@ func TestDeleteToken_WithPersist(t *testing.T) {
 	s.DeleteAccessTokenByRefreshToken(refreshToken)
 
 	tokens, _ := persist.AllOAuthTokens()
-	assert.Len(t, tokens, 0)
+	assert.Empty(t, tokens)
 }
 
 func TestConsumeRefreshToken_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1225,11 +1247,12 @@ func TestConsumeRefreshToken_WithPersist(t *testing.T) {
 	s.ConsumeRefreshToken(refreshToken, "", "")
 
 	tokens, _ := persist.AllOAuthTokens()
-	assert.Len(t, tokens, 0)
+	assert.Empty(t, tokens)
 }
 
 func TestDeleteAccessTokenByRefreshToken_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
@@ -1247,11 +1270,12 @@ func TestDeleteAccessTokenByRefreshToken_WithPersist(t *testing.T) {
 	s.DeleteAccessTokenByRefreshToken(refreshToken)
 
 	tokens, _ := persist.AllOAuthTokens()
-	assert.Len(t, tokens, 0)
+	assert.Empty(t, tokens)
 }
 
 func TestStore_ReconcileClients_WithPersist(t *testing.T) {
 	persist := newMockPersist()
+
 	s := newStore(persist, testLogger(), nil)
 	defer s.stop()
 
