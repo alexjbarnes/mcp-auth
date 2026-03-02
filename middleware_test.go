@@ -449,7 +449,7 @@ func TestMiddleware_AccountChecker_ActiveUser(t *testing.T) {
 	})
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{"user1": "pass"},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{"user1": "pass"}),
 		disabled:         map[string]bool{},
 	}
 
@@ -478,7 +478,7 @@ func TestMiddleware_AccountChecker_DisabledUser(t *testing.T) {
 	})
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{"user1": "pass"},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{"user1": "pass"}),
 		disabled:         map[string]bool{"user1": true},
 	}
 
@@ -503,7 +503,7 @@ func TestMiddleware_AccountChecker_DisabledAPIKeyUser(t *testing.T) {
 	s.RegisterAPIKey("vs_disabled_key", "disabled-user")
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{}),
 		disabled:         map[string]bool{"disabled-user": true},
 	}
 
@@ -558,7 +558,7 @@ func TestMiddleware_PlainUserAuth_SkipsAccountCheck(t *testing.T) {
 
 	// Pass a plain UserAuthenticator (not UserAccountChecker).
 	// Account check should be skipped.
-	users := MapAuthenticator{"user1": "pass"}
+	users := NewMapAuthenticator(map[string]string{"user1": "pass"})
 	mw := authMiddleware(s, testLogger(), testServerURL, "", "", users)
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -586,62 +586,3 @@ func TestWithUserID_Empty(t *testing.T) {
 	assert.Empty(t, RequestUserID(ctx))
 }
 
-// --- No-prefix API key tests ---
-
-func TestMiddleware_APIKey_NoPrefixValid(t *testing.T) {
-	s := testStore(t)
-	// Empty prefix: API keys work without any prefix requirement.
-	mw := authMiddleware(s, testLogger(), testServerURL, "", "", nil)
-
-	s.RegisterAPIKey("raw-key-no-prefix", "apiuser")
-
-	var capturedUserID string
-
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedUserID = RequestUserID(r.Context())
-
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest("GET", "/mcp", nil)
-	req.Header.Set("Authorization", "Bearer raw-key-no-prefix")
-
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "apiuser", capturedUserID)
-}
-
-func TestMiddleware_APIKey_NoPrefixFallsThrough(t *testing.T) {
-	s := testStore(t)
-	// Empty prefix: unknown keys fall through to OAuth.
-	mw := authMiddleware(s, testLogger(), testServerURL, "", "", nil)
-
-	// Register an OAuth token but no API key.
-	s.SaveToken(&OAuthToken{
-		Token:     "oauth-token",
-		Kind:      "access",
-		UserID:    "oauthuser",
-		ExpiresAt: time.Now().Add(24 * time.Hour),
-	})
-
-	var capturedUserID string
-
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedUserID = RequestUserID(r.Context())
-
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest("GET", "/mcp", nil)
-	req.Header.Set("Authorization", "Bearer oauth-token")
-
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "oauthuser", capturedUserID)
-}

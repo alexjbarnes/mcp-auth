@@ -106,14 +106,11 @@ func authMiddleware(s *store, logger *slog.Logger, serverURL, apiKeyPrefix, trus
 
 			token := strings.TrimPrefix(authHeader, "Bearer ")
 
-			// API key authentication. When a prefix is configured, only
-			// tokens starting with it are checked and an invalid key is a
-			// hard 401. When no prefix is set, every token is speculatively
-			// checked as an API key and misses fall through to OAuth.
-			hasPrefix := apiKeyPrefix != "" && strings.HasPrefix(token, apiKeyPrefix)
-			if hasPrefix || apiKeyPrefix == "" {
+			// API key authentication: keys use a configurable prefix to
+			// distinguish them from OAuth Bearer tokens.
+			if apiKeyPrefix != "" && strings.HasPrefix(token, apiKeyPrefix) {
 				ak := s.ValidateAPIKey(token)
-				if ak == nil && hasPrefix {
+				if ak == nil {
 					logger.Debug("middleware: invalid API key",
 						slog.String("ip", ip),
 						slog.String("path", r.URL.Path),
@@ -124,25 +121,23 @@ func authMiddleware(s *store, logger *slog.Logger, serverURL, apiKeyPrefix, trus
 					return
 				}
 
-				if ak != nil {
-					if !checkAccountActive(w, r, accountChecker, logger, wwwAuthInvalid, ak.UserID, ip) {
-						return
-					}
-
-					logger.Debug("middleware: authenticated via API key",
-						slog.String("user_id", ak.UserID),
-						slog.String("ip", ip),
-					)
-
-					ctx := r.Context()
-					ctx = context.WithValue(ctx, ctxUserID, ak.UserID)
-					ctx = context.WithValue(ctx, ctxClientID, ak.UserID)
-					ctx = context.WithValue(ctx, ctxRemoteIP, ip)
-
-					next.ServeHTTP(w, r.WithContext(ctx))
-
+				if !checkAccountActive(w, r, accountChecker, logger, wwwAuthInvalid, ak.UserID, ip) {
 					return
 				}
+
+				logger.Debug("middleware: authenticated via API key",
+					slog.String("user_id", ak.UserID),
+					slog.String("ip", ip),
+				)
+
+				ctx := r.Context()
+				ctx = context.WithValue(ctx, ctxUserID, ak.UserID)
+				ctx = context.WithValue(ctx, ctxClientID, ak.UserID)
+				ctx = context.WithValue(ctx, ctxRemoteIP, ip)
+
+				next.ServeHTTP(w, r.WithContext(ctx))
+
+				return
 			}
 
 			// OAuth Bearer token authentication.

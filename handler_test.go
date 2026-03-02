@@ -281,7 +281,7 @@ func TestToken_ClientCredentials_DisabledUser(t *testing.T) {
 	})
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{"disabled-user": "pass"},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{"disabled-user": "pass"}),
 		disabled:         map[string]bool{"disabled-user": true},
 	}
 
@@ -317,7 +317,7 @@ func TestToken_ClientCredentials_ActiveUser(t *testing.T) {
 	})
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{"active-user": "pass"},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{"active-user": "pass"}),
 		disabled:         map[string]bool{},
 	}
 
@@ -341,7 +341,7 @@ func TestToken_ClientCredentials_ActiveUser(t *testing.T) {
 func TestServer_Register_Helper(t *testing.T) {
 	srv := New(Config{
 		ServerURL: testServerURL,
-		Users:     MapAuthenticator{"u": "p"},
+		Users:     NewMapAuthenticator(map[string]string{"u": "p"}),
 	})
 	t.Cleanup(srv.Stop)
 
@@ -375,7 +375,7 @@ func TestToken_AuthCodeExchange_ActiveUser(t *testing.T) {
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{"testuser": "pass"},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{"testuser": "pass"}),
 		disabled:         map[string]bool{},
 	}
 
@@ -420,7 +420,7 @@ func TestToken_RefreshToken_DisabledUser(t *testing.T) {
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{"testuser": "pass"},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{"testuser": "pass"}),
 		disabled:         map[string]bool{"testuser": true},
 	}
 
@@ -461,7 +461,7 @@ func TestToken_RefreshToken_ActiveUser(t *testing.T) {
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
 
 	checker := &testAccountChecker{
-		MapAuthenticator: MapAuthenticator{"testuser": "pass"},
+		MapAuthenticator: NewMapAuthenticator(map[string]string{"testuser": "pass"}),
 		disabled:         map[string]bool{},
 	}
 
@@ -538,7 +538,7 @@ func TestToken_AuthCodeExchange_PlainUsersNoChecker(t *testing.T) {
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
 
 	// Pass a plain UserAuthenticator (not UserAccountChecker) — check is skipped.
-	users := MapAuthenticator{"testuser": "pass"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "pass"})
 	handler := handleToken(s, testLogger(), testServerURL, "", users)
 
 	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
@@ -1067,7 +1067,7 @@ func TestRegistration_NoSecretExpiresAt_WhenAuthMethodNone(t *testing.T) {
 func TestAuthorize_GET_ShowsLoginForm(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1083,7 +1083,7 @@ func TestAuthorize_GET_ShowsLoginForm(t *testing.T) {
 
 func TestAuthorize_GET_MissingClientID(t *testing.T) {
 	s := testStore(t)
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&redirect_uri=https://example.com/callback", nil)
@@ -1096,7 +1096,7 @@ func TestAuthorize_GET_MissingClientID(t *testing.T) {
 
 func TestAuthorize_GET_UnknownClient(t *testing.T) {
 	s := testStore(t)
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1111,7 +1111,7 @@ func TestAuthorize_GET_UnknownClient(t *testing.T) {
 func TestAuthorize_GET_InvalidRedirectURI(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1126,7 +1126,7 @@ func TestAuthorize_GET_InvalidRedirectURI(t *testing.T) {
 func TestAuthorize_GET_MissingPKCE(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback", nil)
@@ -1142,7 +1142,7 @@ func TestAuthorize_GET_MissingPKCE(t *testing.T) {
 func TestAuthorize_GET_MissingResponseType(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1159,7 +1159,7 @@ func TestAuthorize_GET_MissingResponseType(t *testing.T) {
 func TestAuthorize_GET_WrongResponseType(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1176,7 +1176,7 @@ func TestAuthorize_GET_WrongResponseType(t *testing.T) {
 func TestAuthorize_GET_ClickjackHeaders(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1192,7 +1192,7 @@ func TestAuthorize_GET_ClickjackHeaders(t *testing.T) {
 func TestAuthorize_GET_ResourceParameter(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1207,7 +1207,7 @@ func TestAuthorize_GET_ResourceParameter(t *testing.T) {
 func TestAuthorize_GET_WrongResource(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1224,7 +1224,7 @@ func TestAuthorize_GET_WrongResource(t *testing.T) {
 func TestAuthorize_GET_LoopbackPrefixRedirect(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"http://127.0.0.1"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1241,7 +1241,7 @@ func TestAuthorize_GET_LoopbackPrefixRedirect(t *testing.T) {
 func TestAuthorize_POST_ValidLogin(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -1271,7 +1271,7 @@ func TestAuthorize_POST_ValidLogin(t *testing.T) {
 func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -1310,7 +1310,7 @@ func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
 func TestAuthorize_POST_StateURLEncoded(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -1343,7 +1343,7 @@ func TestAuthorize_POST_RedirectURIWithQueryParams(t *testing.T) {
 	s := testStore(t)
 	redirectURI := "https://example.com/callback?existing=param"
 	clientID := registerTestClient(t, s, []string{redirectURI})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, redirectURI)
@@ -1374,7 +1374,7 @@ func TestAuthorize_POST_RedirectURIWithQueryParams(t *testing.T) {
 func TestAuthorize_POST_InvalidPassword(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -1402,7 +1402,7 @@ func TestAuthorize_POST_InvalidPassword(t *testing.T) {
 func TestAuthorize_POST_InvalidRedirectURI(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -1429,7 +1429,7 @@ func TestAuthorize_POST_InvalidRedirectURI(t *testing.T) {
 func TestAuthorize_POST_MissingCSRF(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1454,7 +1454,7 @@ func TestAuthorize_POST_MissingCSRF(t *testing.T) {
 func TestAuthorize_POST_MissingPKCE(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -1481,7 +1481,7 @@ func TestAuthorize_POST_MissingPKCE(t *testing.T) {
 func TestAuthorize_POST_RateLimited(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -1515,7 +1515,7 @@ func TestAuthorize_POST_RateLimited(t *testing.T) {
 func TestAuthorize_POST_IssInResponse(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -1545,7 +1545,7 @@ func TestAuthorize_POST_IssInResponse(t *testing.T) {
 func TestAuthorize_POST_ResourceBindsToCode(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	csrfToken := getCSRFToken(t, handler, clientID, "https://example.com/callback")
@@ -3072,7 +3072,7 @@ func TestPreConfigured_AuthorizeEndpointRejected(t *testing.T) {
 	secret := "super-secret"
 	registerPreConfiguredClient(t, s, clientID, secret)
 
-	users := MapAuthenticator{"testuser": "password123"}
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
@@ -3125,7 +3125,7 @@ func TestPreConfigured_AuthCodeFlowRejected(t *testing.T) {
 func TestServer_RegisterPreConfiguredClient_GrantTypeMismatch(t *testing.T) {
 	srv := New(Config{
 		ServerURL:  testServerURL,
-		Users:      MapAuthenticator{},
+		Users:      NewMapAuthenticator(map[string]string{}),
 		GrantTypes: []string{"authorization_code", "refresh_token"},
 	})
 	t.Cleanup(srv.Stop)
@@ -3144,7 +3144,7 @@ func TestServer_RegisterPreConfiguredClient_GrantTypeMismatch(t *testing.T) {
 func TestServer_RegisterPreConfiguredClient_GrantTypeMatch(t *testing.T) {
 	srv := New(Config{
 		ServerURL:  testServerURL,
-		Users:      MapAuthenticator{},
+		Users:      NewMapAuthenticator(map[string]string{}),
 		GrantTypes: []string{"authorization_code", "refresh_token", "client_credentials"},
 	})
 	t.Cleanup(srv.Stop)

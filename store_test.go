@@ -1449,28 +1449,28 @@ func TestStore_RemoveClient_WithPersist(t *testing.T) {
 // --- MapAuthenticator tests ---
 
 func TestMapAuthenticator_ValidCredentials(t *testing.T) {
-	m := MapAuthenticator{"alice": "secret"}
+	m := NewMapAuthenticator(map[string]string{"alice": "secret"})
 	userID, err := m.ValidateCredentials(context.Background(), "alice", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, "alice", userID)
 }
 
 func TestMapAuthenticator_WrongPassword(t *testing.T) {
-	m := MapAuthenticator{"alice": "secret"}
+	m := NewMapAuthenticator(map[string]string{"alice": "secret"})
 	userID, err := m.ValidateCredentials(context.Background(), "alice", "wrong")
 	require.NoError(t, err)
 	assert.Empty(t, userID)
 }
 
 func TestMapAuthenticator_UnknownUser(t *testing.T) {
-	m := MapAuthenticator{"alice": "secret"}
+	m := NewMapAuthenticator(map[string]string{"alice": "secret"})
 	userID, err := m.ValidateCredentials(context.Background(), "bob", "secret")
 	require.NoError(t, err)
 	assert.Empty(t, userID)
 }
 
 func TestMapAuthenticator_EmptyMap(t *testing.T) {
-	m := MapAuthenticator{}
+	m := NewMapAuthenticator(map[string]string{})
 	userID, err := m.ValidateCredentials(context.Background(), "alice", "secret")
 	require.NoError(t, err)
 	assert.Empty(t, userID)

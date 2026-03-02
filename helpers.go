@@ -15,17 +15,31 @@ import (
 	"strings"
 )
 
-// MapAuthenticator is a UserAuthenticator backed by a simple
-// map[string]string where keys are usernames and values are plaintext
-// passwords. Comparison uses SHA-256 with constant-time comparison.
-// Unknown users are compared against a dummy hash to prevent
-// timing-based user enumeration.
-type MapAuthenticator map[string]string
+// MapAuthenticator is a UserAuthenticator backed by a map of usernames
+// to SHA-256 password hashes. Plaintext passwords are hashed during
+// construction and not retained. Comparison uses constant-time
+// comparison. Unknown users are compared against a dummy hash to
+// prevent timing-based user enumeration.
+type MapAuthenticator struct {
+	hashes map[string]string
+}
+
+// NewMapAuthenticator creates a MapAuthenticator from a map of
+// usernames to plaintext passwords. The passwords are hashed
+// immediately and the plaintext values are not retained.
+func NewMapAuthenticator(users map[string]string) MapAuthenticator {
+	hashes := make(map[string]string, len(users))
+	for u, p := range users {
+		hashes[u] = HashSecret(p)
+	}
+
+	return MapAuthenticator{hashes: hashes}
+}
 
 // ValidateCredentials checks the username and password against the map.
 // Returns the username as the userID on success, or ("", nil) on failure.
 func (m MapAuthenticator) ValidateCredentials(_ context.Context, username, password string) (string, error) {
-	stored, ok := m[username]
+	storedHash, ok := m.hashes[username]
 	if !ok {
 		// Compare against dummy to prevent timing-based user enumeration.
 		subtle.ConstantTimeCompare(
@@ -36,7 +50,6 @@ func (m MapAuthenticator) ValidateCredentials(_ context.Context, username, passw
 		return "", nil
 	}
 
-	storedHash := HashSecret(stored)
 	givenHash := HashSecret(password)
 
 	if subtle.ConstantTimeCompare([]byte(givenHash), []byte(storedHash)) == 1 {

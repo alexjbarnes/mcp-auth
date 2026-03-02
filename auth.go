@@ -26,11 +26,9 @@ type Config struct {
 	// when nil.
 	Logger *slog.Logger
 
-	// APIKeyPrefix distinguishes API keys from OAuth tokens. When set,
-	// only Bearer tokens starting with this prefix are treated as API
-	// keys, and invalid keys receive a hard 401. When empty, all
-	// Bearer tokens are speculatively checked as API keys and misses
-	// fall through to OAuth validation.
+	// APIKeyPrefix, when non-empty, enables API key authentication in
+	// the middleware. Bearer tokens starting with this prefix are
+	// treated as API keys rather than OAuth access tokens.
 	APIKeyPrefix string
 
 	// LoginTitle is the heading shown on the login page.
