@@ -58,16 +58,6 @@ func registerPreConfiguredClient(t *testing.T, s *store, clientID, secret string
 	})
 }
 
-type testUsers map[string]string
-
-func (u testUsers) ValidateCredentials(_ context.Context, username, password string) (string, error) {
-	if pass, ok := u[username]; ok && pass == password {
-		return username, nil
-	}
-
-	return "", nil
-}
-
 const testServerURL = "https://vault.example.com"
 
 func getCSRFToken(t *testing.T, handler http.HandlerFunc, clientID, redirectURI string) string {
@@ -1454,4 +1444,64 @@ func TestStore_RemoveClient_WithPersist(t *testing.T) {
 	assert.True(t, s.RemoveClient("client-to-remove"))
 	assert.Empty(t, persist.clients)
 	assert.Nil(t, s.GetClient("client-to-remove"))
+}
+
+// --- MapAuthenticator tests ---
+
+func TestMapAuthenticator_ValidCredentials(t *testing.T) {
+	m := MapAuthenticator{"alice": "secret"}
+	userID, err := m.ValidateCredentials(context.Background(), "alice", "secret")
+	require.NoError(t, err)
+	assert.Equal(t, "alice", userID)
+}
+
+func TestMapAuthenticator_WrongPassword(t *testing.T) {
+	m := MapAuthenticator{"alice": "secret"}
+	userID, err := m.ValidateCredentials(context.Background(), "alice", "wrong")
+	require.NoError(t, err)
+	assert.Empty(t, userID)
+}
+
+func TestMapAuthenticator_UnknownUser(t *testing.T) {
+	m := MapAuthenticator{"alice": "secret"}
+	userID, err := m.ValidateCredentials(context.Background(), "bob", "secret")
+	require.NoError(t, err)
+	assert.Empty(t, userID)
+}
+
+func TestMapAuthenticator_EmptyMap(t *testing.T) {
+	m := MapAuthenticator{}
+	userID, err := m.ValidateCredentials(context.Background(), "alice", "secret")
+	require.NoError(t, err)
+	assert.Empty(t, userID)
+}
+
+// --- RegisterAPIKeyByHash tests ---
+
+func TestStore_RegisterAPIKeyByHash(t *testing.T) {
+	s := testStore(t)
+
+	hash := HashSecret("my-api-key")
+	s.RegisterAPIKeyByHash(hash, "user1")
+
+	s.mu.RLock()
+	ak := s.apiKeys[hash]
+	s.mu.RUnlock()
+
+	require.NotNil(t, ak)
+	assert.Equal(t, "user1", ak.UserID)
+	assert.Equal(t, hash, ak.KeyHash)
+}
+
+func TestStore_RegisterAPIKeyByHash_WithPersist(t *testing.T) {
+	persist := newMockPersist()
+	s := newStore(persist, testLogger(), nil)
+	t.Cleanup(s.stop)
+
+	hash := HashSecret("my-api-key")
+	s.RegisterAPIKeyByHash(hash, "user1")
+
+	keys, _ := persist.AllAPIKeys()
+	assert.Len(t, keys, 1)
+	assert.Equal(t, "user1", keys[hash].UserID)
 }

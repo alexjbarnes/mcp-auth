@@ -1,6 +1,7 @@
 package mcpauth
 
 import (
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -25,9 +26,11 @@ type Config struct {
 	// when nil.
 	Logger *slog.Logger
 
-	// APIKeyPrefix, when non-empty, enables API key authentication in
-	// the middleware. Bearer tokens starting with this prefix are
-	// treated as API keys rather than OAuth access tokens.
+	// APIKeyPrefix distinguishes API keys from OAuth tokens. When set,
+	// only Bearer tokens starting with this prefix are treated as API
+	// keys, and invalid keys receive a hard 401. When empty, all
+	// Bearer tokens are speculatively checked as API keys and misses
+	// fall through to OAuth validation.
 	APIKeyPrefix string
 
 	// LoginTitle is the heading shown on the login page.
@@ -168,8 +171,28 @@ func (srv *Server) Middleware() func(http.Handler) http.Handler {
 // RegisterPreConfiguredClient adds a pre-configured OAuth client that
 // survives reconciliation. Use this for server-owned clients that
 // should not be removed by ReconcileClients.
-func (srv *Server) RegisterPreConfiguredClient(client *OAuthClient) {
+//
+// Returns an error if the client requests grant types that the server
+// does not support.
+func (srv *Server) RegisterPreConfiguredClient(client *OAuthClient) error {
+	for _, cg := range client.GrantTypes {
+		found := false
+
+		for _, sg := range srv.grantTypes {
+			if cg == sg {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("client %q requests grant type %q, but server only supports %v", client.ClientID, cg, srv.grantTypes)
+		}
+	}
+
 	srv.s.RegisterPreConfiguredClient(client)
+
+	return nil
 }
 
 // ReconcileClients removes dynamically registered clients whose IDs
@@ -184,6 +207,13 @@ func (srv *Server) ReconcileClients(currentClientIDs map[string]struct{}) int {
 // storage.
 func (srv *Server) RegisterAPIKey(rawKey, userID string) {
 	srv.s.RegisterAPIKey(rawKey, userID)
+}
+
+// RegisterAPIKeyByHash registers an API key using a pre-computed hash.
+// Use this when the raw key is not available and you already hold the
+// SHA-256 hash (e.g. from HashSecret).
+func (srv *Server) RegisterAPIKeyByHash(hash, userID string) {
+	srv.s.RegisterAPIKeyByHash(hash, userID)
 }
 
 // ReconcileAPIKeys removes API keys whose hashes are not in

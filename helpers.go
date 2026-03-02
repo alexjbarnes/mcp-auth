@@ -1,6 +1,7 @@
 package mcpauth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -13,6 +14,37 @@ import (
 	"net/url"
 	"strings"
 )
+
+// MapAuthenticator is a UserAuthenticator backed by a simple
+// map[string]string where keys are usernames and values are plaintext
+// passwords. Comparison uses SHA-256 with constant-time comparison.
+// Unknown users are compared against a dummy hash to prevent
+// timing-based user enumeration.
+type MapAuthenticator map[string]string
+
+// ValidateCredentials checks the username and password against the map.
+// Returns the username as the userID on success, or ("", nil) on failure.
+func (m MapAuthenticator) ValidateCredentials(_ context.Context, username, password string) (string, error) {
+	stored, ok := m[username]
+	if !ok {
+		// Compare against dummy to prevent timing-based user enumeration.
+		subtle.ConstantTimeCompare(
+			[]byte(HashSecret(password)),
+			[]byte(dummyHash),
+		)
+
+		return "", nil
+	}
+
+	storedHash := HashSecret(stored)
+	givenHash := HashSecret(password)
+
+	if subtle.ConstantTimeCompare([]byte(givenHash), []byte(storedHash)) == 1 {
+		return username, nil
+	}
+
+	return "", nil
+}
 
 // HashSecret returns the hex-encoded SHA-256 hash of a secret string.
 func HashSecret(secret string) string {

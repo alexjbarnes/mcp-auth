@@ -574,6 +574,27 @@ func (s *store) RegisterAPIKey(rawKey, userID string) {
 	}
 }
 
+// RegisterAPIKeyByHash stores an API key using a pre-computed hash.
+// Use this when the caller already holds the hash (e.g. from HashSecret)
+// and the raw key is not available.
+func (s *store) RegisterAPIKeyByHash(hash, userID string) {
+	ak := &APIKey{
+		KeyHash:   hash,
+		UserID:    userID,
+		CreatedAt: time.Now(),
+	}
+
+	s.mu.Lock()
+	s.apiKeys[hash] = ak
+	s.mu.Unlock()
+
+	if s.persist != nil {
+		if err := s.persist.SaveAPIKey(hash, *ak); err != nil && s.logger != nil {
+			s.logger.Warn("persisting API key by hash", slog.String("error", err.Error()))
+		}
+	}
+}
+
 // ValidateAPIKey checks if a raw API key is registered.
 func (s *store) ValidateAPIKey(rawKey string) *APIKey {
 	hash := HashSecret(rawKey)
