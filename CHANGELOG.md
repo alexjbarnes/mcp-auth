@@ -2,8 +2,6 @@
 
 ## v0.1.0
 
-First release.
-
 ### Features
 
 - OAuth 2.1 authorization server with PKCE (RFC 7636)
