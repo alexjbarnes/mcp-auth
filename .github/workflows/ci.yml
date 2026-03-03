@@ -19,10 +19,6 @@ jobs:
   secrets:
     uses: ./.github/workflows/secrets.yml
 
-  socket:
-    uses: ./.github/workflows/socket.yml
-    secrets: inherit
-
   lint:
     uses: ./.github/workflows/lint.yml
 

@@ -585,4 +585,3 @@ func TestWithUserID_Empty(t *testing.T) {
 	ctx := WithUserID(context.Background(), "")
 	assert.Empty(t, RequestUserID(ctx))
 }
-

@@ -42,14 +42,12 @@ jobs:
           fi
 
       # Badge is powered by a Gist + shields.io endpoint badge.
-      # Setup: create a Gist, add a GIST_TOKEN secret with gist scope,
-      # and replace the gistID below with your own.
       - name: Update coverage badge
         if: inputs.update-badge
         uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_TOKEN }}
-          gistID: your-gist-id-here
+          gistID: 29da905d4adbb295641227b6b4858ae1
           filename: coverage.json
           label: coverage
           message: ${{ steps.coverage.outputs.total }}%
