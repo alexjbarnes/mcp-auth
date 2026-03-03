@@ -44,6 +44,7 @@ type store struct {
 	apiKeys      map[string]*APIKey
 	csrf         map[string]csrfEntry
 	stopGC       chan struct{}
+	stopOnce     sync.Once
 
 	registrationTimes []time.Time
 
@@ -155,9 +156,10 @@ func (s *store) loadFromDisk() {
 	)
 }
 
-// stop terminates the background cleanup goroutine.
+// stop terminates the background cleanup goroutine. Safe to call
+// multiple times.
 func (s *store) stop() {
-	close(s.stopGC)
+	s.stopOnce.Do(func() { close(s.stopGC) })
 }
 
 // gcLoop periodically removes expired tokens, codes, and CSRF tokens.

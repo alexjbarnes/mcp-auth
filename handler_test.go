@@ -1268,7 +1268,7 @@ func TestAuthorize_POST_ValidLogin(t *testing.T) {
 	assert.Contains(t, location, "iss="+url.QueryEscape(testServerURL))
 }
 
-func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
+func TestAuthorize_POST_ScopePropagatedToCode(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
 	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
@@ -1301,10 +1301,10 @@ func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
 	code := u.Query().Get("code")
 	require.NotEmpty(t, code)
 
-	// Scopes from the form should NOT be propagated to the code.
+	// Scopes from the authorize request are propagated through to the code.
 	retrievedCode, _ := s.ConsumeCode(code)
 	require.NotNil(t, retrievedCode)
-	assert.Nil(t, retrievedCode.Scopes, "scopes should not be propagated from authorize form to code")
+	assert.Equal(t, []string{"read", "write", "admin"}, retrievedCode.Scopes)
 }
 
 func TestAuthorize_POST_StateURLEncoded(t *testing.T) {
