@@ -1415,6 +1415,30 @@ func TestStore_RevokeClientTokens_WithPersist(t *testing.T) {
 	assert.Empty(t, persist.tokens)
 }
 
+func TestStore_SaveToken_ScrubsRawSecrets(t *testing.T) {
+	persist := newMockPersist()
+	s := newStore(persist, testLogger(), nil)
+	t.Cleanup(s.stop)
+
+	s.SaveToken(&OAuthToken{
+		Token:        "raw-access-secret",
+		RefreshToken: "raw-refresh-secret",
+		Kind:         "access",
+		UserID:       "user1",
+		ClientID:     "client1",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	})
+
+	require.Len(t, persist.tokens, 1)
+
+	for _, tok := range persist.tokens {
+		assert.Empty(t, tok.Token, "raw access token must not be persisted")
+		assert.Empty(t, tok.RefreshToken, "raw refresh token must not be persisted")
+		assert.NotEmpty(t, tok.TokenHash)
+		assert.NotEmpty(t, tok.RefreshHash)
+	}
+}
+
 func TestStore_RemoveClient(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})

@@ -110,6 +110,9 @@ func (s *store) loadFromDisk() {
 			needsMigration = true
 		}
 
+		t.Token = ""
+		t.RefreshToken = ""
+
 		if needsMigration {
 			if err := s.persist.SaveOAuthToken(t); err != nil {
 				s.logger.Warn("migrating legacy token",
@@ -117,9 +120,6 @@ func (s *store) loadFromDisk() {
 				)
 			}
 		}
-
-		t.Token = ""
-		t.RefreshToken = ""
 
 		s.tokens[t.TokenHash] = &t
 
@@ -297,7 +297,11 @@ func (s *store) SaveToken(t *OAuthToken) {
 	s.mu.Unlock()
 
 	if s.persist != nil {
-		if err := s.persist.SaveOAuthToken(*t); err != nil && s.logger != nil {
+		persisted := *t
+		persisted.Token = ""
+		persisted.RefreshToken = ""
+
+		if err := s.persist.SaveOAuthToken(persisted); err != nil && s.logger != nil {
 			s.logger.Warn("persisting OAuth token", slog.String("error", err.Error()))
 		}
 	}
