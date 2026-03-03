@@ -1,0 +1,81 @@
+# golangci-lint v2 config
+
+version: "2"
+
+formatters:
+  enable:
+    - gofumpt
+
+linters:
+  enable:
+    # --- Correctness ---
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - unconvert
+    - nilerr
+    - nilnesserr
+
+    # --- HTTP / resource safety ---
+    - bodyclose
+    - noctx
+
+    # --- Error handling ---
+    - errorlint
+    - nolintlint
+
+    # --- Code quality ---
+    - gocritic
+    - misspell
+    - funlen
+    - gocognit
+    - mnd
+    - recvcheck
+
+    # --- Security ---
+    - gosec
+
+    # --- Logging ---
+    - sloglint
+
+    # --- Testing ---
+    - testifylint
+
+    # --- Style ---
+    - wsl_v5
+
+    # --- Documentation ---
+    - revive
+
+  settings:
+    funlen:
+      lines: 200
+      statements: 100
+    gocognit:
+      min-complexity: 50
+    revive:
+      rules:
+        - name: exported
+
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - linters:
+          - gosec
+        text: "G104:"
+      - path: _test\.go
+        linters:
+          - gosec
+          - funlen
+          - gocognit
+          - mnd
+      - path: (_templ\.go|mock_.*\.go|\.pb\.go)
+        linters:
+          - all
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
