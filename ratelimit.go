@@ -159,6 +159,7 @@ func (trl *tokenRateLimiter) checkLockout(clientID string) bool {
 	if len(trl.lockouts) > tokenLimiterPruneThreshold {
 		for k, e := range trl.lockouts {
 			activeLock := !e.lockedAt.IsZero() && now.Before(e.lockedAt.Add(lockoutDuration))
+
 			recentFailure := now.Before(e.lastFailureAt.Add(lockoutDuration))
 			if !activeLock && !recentFailure {
 				delete(trl.lockouts, k)

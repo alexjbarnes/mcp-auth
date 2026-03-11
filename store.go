@@ -180,6 +180,7 @@ func (s *store) gcLoop() {
 // cleanup removes all expired entries from the store.
 func (s *store) cleanup() {
 	now := time.Now()
+
 	var toDelete []string
 
 	s.mu.Lock()
@@ -391,6 +392,7 @@ func (s *store) ConsumeRefreshToken(token, clientID, resource string) *OAuthToke
 // to avoid recomputing it.
 func (s *store) consumeRefreshTokenByHash(hash, clientID, resource string) *OAuthToken {
 	s.mu.Lock()
+
 	t := s.validateRefreshTokenLocked(hash, clientID, resource)
 	if t != nil {
 		delete(s.tokens, hash)
@@ -459,6 +461,7 @@ func (s *store) RegistrationAllowed() bool {
 // maximum number of registered clients has been reached.
 func (s *store) RegisterClient(ci *OAuthClient) bool {
 	s.mu.Lock()
+
 	full := len(s.clients) >= maxClients
 	if !full {
 		s.clients[ci.ClientID] = ci
@@ -530,10 +533,12 @@ func (s *store) ConsumeCSRF(token, clientID, redirectURI string) bool {
 func (s *store) AuthenticateConfidentialClient(clientID, secret string) (ok, confidential bool) {
 	s.mu.RLock()
 	client, exists := s.clients[clientID]
+
 	storedHash := ""
 	if exists {
 		storedHash = client.SecretHash
 	}
+
 	s.mu.RUnlock()
 
 	// Always hash the secret to prevent timing-based enumeration of
