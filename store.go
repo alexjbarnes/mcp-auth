@@ -180,9 +180,9 @@ func (s *store) gcLoop() {
 // cleanup removes all expired entries from the store.
 func (s *store) cleanup() {
 	now := time.Now()
+	var toDelete []string
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	for k, ac := range s.codes {
 		if now.After(ac.ExpiresAt) {
@@ -198,15 +198,21 @@ func (s *store) cleanup() {
 				delete(s.refreshIndex, t.RefreshHash)
 			}
 
-			if s.persist != nil {
-				_ = s.persist.DeleteOAuthToken(hash)
-			}
+			toDelete = append(toDelete, hash)
 		}
 	}
 
 	for k, entry := range s.csrf {
 		if now.After(entry.expiresAt) {
 			delete(s.csrf, k)
+		}
+	}
+
+	s.mu.Unlock()
+
+	if s.persist != nil {
+		for _, hash := range toDelete {
+			_ = s.persist.DeleteOAuthToken(hash)
 		}
 	}
 }
@@ -368,14 +374,16 @@ func (s *store) ConsumeRefreshToken(token, clientID, resource string) *OAuthToke
 	hash := HashSecret(token)
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	t := s.validateRefreshTokenLocked(hash, clientID, resource)
 	if t == nil {
+		s.mu.Unlock()
 		return nil
 	}
 
 	delete(s.tokens, hash)
+
+	s.mu.Unlock()
 
 	if s.persist != nil {
 		_ = s.persist.DeleteOAuthToken(hash)
@@ -435,13 +443,15 @@ func (s *store) RegistrationAllowed() bool {
 // maximum number of registered clients has been reached.
 func (s *store) RegisterClient(ci *OAuthClient) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if len(s.clients) >= maxClients {
+		s.mu.Unlock()
 		return false
 	}
 
 	s.clients[ci.ClientID] = ci
+
+	s.mu.Unlock()
 
 	if s.persist != nil {
 		if err := s.persist.SaveOAuthClient(*ci); err != nil && s.logger != nil {
