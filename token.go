@@ -163,10 +163,17 @@ func handleRefreshToken(w http.ResponseWriter, s *store, limiter *tokenRateLimit
 		return
 	}
 
+	// Hash once and reuse for both the read-only peek and the consume.
+	refreshHash := HashSecret(req.RefreshToken)
+
 	// Validate refresh token exists before authenticating the client.
 	// This prevents an attacker from probing whether a client_id is
 	// confidential by observing different error codes.
-	if !s.ValidateRefreshToken(req.RefreshToken, req.ClientID, req.Resource) {
+	s.mu.RLock()
+	peekValid := s.validateRefreshTokenLocked(refreshHash, req.ClientID, req.Resource) != nil
+	s.mu.RUnlock()
+
+	if !peekValid {
 		limiter.recordFailure(ip, req.ClientID)
 		logger.Debug("refresh token validation failed",
 			slog.String("client_id", req.ClientID),
@@ -189,7 +196,7 @@ func handleRefreshToken(w http.ResponseWriter, s *store, limiter *tokenRateLimit
 		return
 	}
 
-	rt := s.ConsumeRefreshToken(req.RefreshToken, req.ClientID, req.Resource)
+	rt := s.consumeRefreshTokenByHash(refreshHash, req.ClientID, req.Resource)
 	if rt == nil {
 		limiter.recordFailure(ip, req.ClientID)
 		logger.Debug("refresh token validation failed",

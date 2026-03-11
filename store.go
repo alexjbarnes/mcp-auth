@@ -369,7 +369,7 @@ func (s *store) validateRefreshTokenLocked(tokenHash, clientID, resource string)
 }
 
 // ValidateRefreshToken performs a read-only check of a refresh token
-// without consuming it. Returns nil if the token is invalid.
+// without consuming it. Returns false if the token is invalid.
 func (s *store) ValidateRefreshToken(token, clientID, resource string) bool {
 	hash := HashSecret(token)
 
@@ -383,8 +383,13 @@ func (s *store) ValidateRefreshToken(token, clientID, resource string) bool {
 // ConsumeRefreshToken atomically validates and deletes a refresh token.
 // Returns nil if the token is invalid.
 func (s *store) ConsumeRefreshToken(token, clientID, resource string) *OAuthToken {
-	hash := HashSecret(token)
+	return s.consumeRefreshTokenByHash(HashSecret(token), clientID, resource)
+}
 
+// consumeRefreshTokenByHash is the hash-accepting implementation of
+// ConsumeRefreshToken. Use this when the caller already holds the hash
+// to avoid recomputing it.
+func (s *store) consumeRefreshTokenByHash(hash, clientID, resource string) *OAuthToken {
 	s.mu.Lock()
 	t := s.validateRefreshTokenLocked(hash, clientID, resource)
 	if t != nil {
@@ -531,15 +536,25 @@ func (s *store) AuthenticateConfidentialClient(clientID, secret string) (ok, con
 	}
 	s.mu.RUnlock()
 
-	if !exists || storedHash == "" {
-		return true, false
-	}
-
+	// Always hash the secret to prevent timing-based enumeration of
+	// which clients are confidential vs public.
 	if s.secretValidator != nil {
+		if !exists || storedHash == "" {
+			return true, false
+		}
+
 		return s.secretValidator(secret, storedHash), true
 	}
 
 	computed := HashSecret(secret)
+
+	if !exists || storedHash == "" {
+		// Burn constant time against a dummy hash so the caller
+		// cannot distinguish public from confidential clients.
+		subtle.ConstantTimeCompare([]byte(computed), []byte(dummyHash))
+		return true, false
+	}
+
 	match := subtle.ConstantTimeCompare([]byte(computed), []byte(storedHash)) == 1
 
 	return match, true
