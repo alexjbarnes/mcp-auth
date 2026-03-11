@@ -163,17 +163,30 @@ func handleRefreshToken(w http.ResponseWriter, s *store, limiter *tokenRateLimit
 		return
 	}
 
-	if client := s.GetClient(req.ClientID); client != nil && client.SecretHash != "" {
-		if !s.ValidateClientSecret(req.ClientID, req.ClientSecret) {
-			limiter.recordFailure(ip, req.ClientID)
-			logger.Warn("refresh token: confidential client authentication failed",
-				slog.String("client_id", req.ClientID),
-				slog.String("ip", ip),
-			)
-			writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
+	// Validate refresh token exists before authenticating the client.
+	// This prevents an attacker from probing whether a client_id is
+	// confidential by observing different error codes.
+	if !s.ValidateRefreshToken(req.RefreshToken, req.ClientID, req.Resource) {
+		limiter.recordFailure(ip, req.ClientID)
+		logger.Debug("refresh token validation failed",
+			slog.String("client_id", req.ClientID),
+			slog.String("ip", ip),
+		)
+		writeJSONError(w, http.StatusBadRequest, "invalid_grant", "invalid or expired refresh token")
 
-			return
-		}
+		return
+	}
+
+	ok, confidential := s.AuthenticateConfidentialClient(req.ClientID, req.ClientSecret)
+	if confidential && !ok {
+		limiter.recordFailure(ip, req.ClientID)
+		logger.Warn("refresh token: confidential client authentication failed",
+			slog.String("client_id", req.ClientID),
+			slog.String("ip", ip),
+		)
+		writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
+
+		return
 	}
 
 	rt := s.ConsumeRefreshToken(req.RefreshToken, req.ClientID, req.Resource)
@@ -359,17 +372,16 @@ func handleAuthorizationCode(w http.ResponseWriter, s *store, limiter *tokenRate
 		return
 	}
 
-	if client := s.GetClient(req.ClientID); client != nil && client.SecretHash != "" {
-		if !s.ValidateClientSecret(req.ClientID, req.ClientSecret) {
-			limiter.recordFailure(ip, req.ClientID)
-			logger.Warn("authorization code: confidential client authentication failed",
-				slog.String("client_id", req.ClientID),
-				slog.String("ip", ip),
-			)
-			writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
+	ok, confidential := s.AuthenticateConfidentialClient(req.ClientID, req.ClientSecret)
+	if confidential && !ok {
+		limiter.recordFailure(ip, req.ClientID)
+		logger.Warn("authorization code: confidential client authentication failed",
+			slog.String("client_id", req.ClientID),
+			slog.String("ip", ip),
+		)
+		writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
 
-			return
-		}
+		return
 	}
 
 	if ac.RedirectURI != "" && req.RedirectURI != ac.RedirectURI {

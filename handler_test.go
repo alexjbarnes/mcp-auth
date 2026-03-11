@@ -2334,6 +2334,87 @@ func TestToken_RefreshMissingToken(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestToken_RefreshConfidentialClientBadSecret_ReturnsInvalidClient(t *testing.T) {
+	s := testStore(t)
+
+	// Register a confidential client with a secret.
+	secret := "my-secret"
+	clientID := "conf-client"
+	s.RegisterPreConfiguredClient(&OAuthClient{
+		ClientID:     clientID,
+		SecretHash:   HashSecret(secret),
+		RedirectURIs: []string{"https://example.com/callback"},
+		GrantTypes:   []string{"authorization_code", "refresh_token"},
+	})
+
+	handler := handleToken(s, testLogger(), testServerURL, "", nil)
+
+	// Create a valid refresh token for this client.
+	refreshToken := RandomHex(32)
+	s.SaveToken(&OAuthToken{
+		Token:     refreshToken,
+		Kind:      "refresh",
+		UserID:    "user1",
+		ClientID:  clientID,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", refreshToken)
+	form.Set("client_id", clientID)
+	form.Set("client_secret", "wrong-secret")
+
+	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var errResp map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
+	assert.Equal(t, "invalid_client", errResp["error"])
+}
+
+func TestToken_RefreshInvalidTokenBeforeClientAuth(t *testing.T) {
+	s := testStore(t)
+
+	// Register a confidential client.
+	secret := "my-secret"
+	clientID := "conf-client"
+	s.RegisterPreConfiguredClient(&OAuthClient{
+		ClientID:     clientID,
+		SecretHash:   HashSecret(secret),
+		RedirectURIs: []string{"https://example.com/callback"},
+		GrantTypes:   []string{"authorization_code", "refresh_token"},
+	})
+
+	handler := handleToken(s, testLogger(), testServerURL, "", nil)
+
+	// Send a bogus refresh token with a valid client secret. The invalid
+	// token should be detected first, returning "invalid_grant" rather
+	// than proceeding to client authentication.
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", "bogus-token")
+	form.Set("client_id", clientID)
+	form.Set("client_secret", secret)
+
+	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var errResp map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
+	assert.Equal(t, "invalid_grant", errResp["error"])
+}
+
 func TestToken_RefreshWithoutClientID(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})

@@ -192,7 +192,17 @@ func isLoopbackRedirect(redirectURI, registered string) bool {
 		return false
 	}
 
-	return ru.Scheme == reg.Scheme && ru.Hostname() == reg.Hostname() && ru.Path == reg.Path
+	ruPath := ru.Path
+	if ruPath == "" {
+		ruPath = "/"
+	}
+
+	regPath := reg.Path
+	if regPath == "" {
+		regPath = "/"
+	}
+
+	return ru.Scheme == reg.Scheme && ru.Hostname() == reg.Hostname() && ruPath == regPath
 }
 
 // validateRedirectScheme checks that a redirect URI uses HTTPS or targets

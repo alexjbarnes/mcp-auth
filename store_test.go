@@ -792,6 +792,14 @@ func TestIsLoopbackRedirect_PathMismatch(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestIsLoopbackRedirect_EmptyPathMatchesRoot(t *testing.T) {
+	// http://127.0.0.1:8080 parses with Path="" while
+	// http://127.0.0.1/ parses with Path="/". Both should match.
+	assert.True(t, isLoopbackRedirect("http://127.0.0.1:8080", "http://127.0.0.1/"))
+	assert.True(t, isLoopbackRedirect("http://127.0.0.1:8080/", "http://127.0.0.1"))
+	assert.True(t, isLoopbackRedirect("http://127.0.0.1:8080", "http://127.0.0.1"))
+}
+
 func TestIsLoopbackRedirect_SchemeMismatch(t *testing.T) {
 	ok := isLoopbackRedirect("https://127.0.0.1:8080/callback", "http://127.0.0.1/callback")
 	assert.False(t, ok)

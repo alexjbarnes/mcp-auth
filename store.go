@@ -368,22 +368,33 @@ func (s *store) validateRefreshTokenLocked(tokenHash, clientID, resource string)
 	return t
 }
 
+// ValidateRefreshToken performs a read-only check of a refresh token
+// without consuming it. Returns nil if the token is invalid.
+func (s *store) ValidateRefreshToken(token, clientID, resource string) bool {
+	hash := HashSecret(token)
+
+	s.mu.RLock()
+	t := s.validateRefreshTokenLocked(hash, clientID, resource)
+	s.mu.RUnlock()
+
+	return t != nil
+}
+
 // ConsumeRefreshToken atomically validates and deletes a refresh token.
 // Returns nil if the token is invalid.
 func (s *store) ConsumeRefreshToken(token, clientID, resource string) *OAuthToken {
 	hash := HashSecret(token)
 
 	s.mu.Lock()
-
 	t := s.validateRefreshTokenLocked(hash, clientID, resource)
+	if t != nil {
+		delete(s.tokens, hash)
+	}
+	s.mu.Unlock()
+
 	if t == nil {
-		s.mu.Unlock()
 		return nil
 	}
-
-	delete(s.tokens, hash)
-
-	s.mu.Unlock()
 
 	if s.persist != nil {
 		_ = s.persist.DeleteOAuthToken(hash)
@@ -443,15 +454,15 @@ func (s *store) RegistrationAllowed() bool {
 // maximum number of registered clients has been reached.
 func (s *store) RegisterClient(ci *OAuthClient) bool {
 	s.mu.Lock()
+	full := len(s.clients) >= maxClients
+	if !full {
+		s.clients[ci.ClientID] = ci
+	}
+	s.mu.Unlock()
 
-	if len(s.clients) >= maxClients {
-		s.mu.Unlock()
+	if full {
 		return false
 	}
-
-	s.clients[ci.ClientID] = ci
-
-	s.mu.Unlock()
 
 	if s.persist != nil {
 		if err := s.persist.SaveOAuthClient(*ci); err != nil && s.logger != nil {
@@ -504,6 +515,34 @@ func (s *store) ConsumeCSRF(token, clientID, redirectURI string) bool {
 	}
 
 	return entry.clientID == clientID && entry.redirectURI == redirectURI
+}
+
+// AuthenticateConfidentialClient checks whether the client is confidential
+// and, if so, validates the secret under a single lock acquisition.
+// Returns (true, false) for public clients (no secret hash),
+// (true, true) for authenticated confidential clients,
+// (false, true) for failed confidential client auth.
+func (s *store) AuthenticateConfidentialClient(clientID, secret string) (ok, confidential bool) {
+	s.mu.RLock()
+	client, exists := s.clients[clientID]
+	storedHash := ""
+	if exists {
+		storedHash = client.SecretHash
+	}
+	s.mu.RUnlock()
+
+	if !exists || storedHash == "" {
+		return true, false
+	}
+
+	if s.secretValidator != nil {
+		return s.secretValidator(secret, storedHash), true
+	}
+
+	computed := HashSecret(secret)
+	match := subtle.ConstantTimeCompare([]byte(computed), []byte(storedHash)) == 1
+
+	return match, true
 }
 
 // ValidateClientSecret checks the provided secret against the stored
