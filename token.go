@@ -128,7 +128,7 @@ func handleToken(s *store, logger *slog.Logger, serverURL, trustedProxyHeader st
 			return
 		}
 
-		if req.GrantType != "refresh_token" && req.GrantType != "client_credentials" && req.ClientID != "" && !s.ClientAllowsGrant(req.ClientID, req.GrantType) {
+		if req.GrantType != "client_credentials" && req.ClientID != "" && !s.ClientAllowsGrant(req.ClientID, req.GrantType) {
 			logger.Debug("token request: client not authorized for grant_type",
 				slog.String("grant_type", req.GrantType),
 				slog.String("client_id", req.ClientID),
@@ -161,6 +161,19 @@ func handleRefreshToken(w http.ResponseWriter, s *store, limiter *tokenRateLimit
 	if req.RefreshToken == "" {
 		writeJSONError(w, http.StatusBadRequest, "invalid_request", "refresh_token is required")
 		return
+	}
+
+	if client := s.GetClient(req.ClientID); client != nil && client.SecretHash != "" {
+		if !s.ValidateClientSecret(req.ClientID, req.ClientSecret) {
+			limiter.recordFailure(ip, req.ClientID)
+			logger.Warn("refresh token: confidential client authentication failed",
+				slog.String("client_id", req.ClientID),
+				slog.String("ip", ip),
+			)
+			writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
+
+			return
+		}
 	}
 
 	rt := s.ConsumeRefreshToken(req.RefreshToken, req.ClientID, req.Resource)
@@ -344,6 +357,19 @@ func handleAuthorizationCode(w http.ResponseWriter, s *store, limiter *tokenRate
 		writeJSONError(w, http.StatusBadRequest, "invalid_grant", "client_id mismatch")
 
 		return
+	}
+
+	if client := s.GetClient(req.ClientID); client != nil && client.SecretHash != "" {
+		if !s.ValidateClientSecret(req.ClientID, req.ClientSecret) {
+			limiter.recordFailure(ip, req.ClientID)
+			logger.Warn("authorization code: confidential client authentication failed",
+				slog.String("client_id", req.ClientID),
+				slog.String("ip", ip),
+			)
+			writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
+
+			return
+		}
 	}
 
 	if ac.RedirectURI != "" && req.RedirectURI != ac.RedirectURI {

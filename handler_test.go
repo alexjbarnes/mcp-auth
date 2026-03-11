@@ -2955,9 +2955,17 @@ func TestToken_DefaultGrantTypeAllowsAuthCode(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-func TestToken_RefreshAlwaysAllowed(t *testing.T) {
+func TestToken_RefreshDeniedWhenNotInGrantTypes(t *testing.T) {
 	s := testStore(t)
-	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
+
+	// Register a client explicitly allowed only authorization_code (no refresh_token).
+	clientID := RandomHex(16)
+	s.RegisterClient(&OAuthClient{
+		ClientID:     clientID,
+		RedirectURIs: []string{"https://example.com/callback"},
+		GrantTypes:   []string{"authorization_code"},
+	})
+
 	handler := handleToken(s, testLogger(), testServerURL, "", nil)
 
 	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
@@ -3001,7 +3009,7 @@ func TestToken_RefreshAlwaysAllowed(t *testing.T) {
 
 	handler(rec2, req2)
 
-	assert.Equal(t, http.StatusOK, rec2.Code)
+	assert.Equal(t, http.StatusBadRequest, rec2.Code)
 }
 
 // Token tests (rate limiting)

@@ -709,7 +709,7 @@ func (s *store) ClientAllowsGrant(clientID, grantType string) bool {
 
 	grants := client.GrantTypes
 	if len(grants) == 0 {
-		grants = []string{"authorization_code"}
+		grants = []string{"authorization_code", "refresh_token"}
 	}
 
 	for _, g := range grants {
