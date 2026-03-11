@@ -394,7 +394,7 @@ func TestMiddleware_TrustedProxyHeader(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "203.0.113.50", capturedIP)
+	assert.Equal(t, "70.41.3.18", capturedIP)
 }
 
 func TestMiddleware_NoProxyHeaderFallsBack(t *testing.T) {

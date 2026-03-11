@@ -93,8 +93,9 @@ func (rl *loginRateLimiter) record(ip string) {
 // lockoutEntry tracks consecutive failures and lockout state for a
 // single client_id.
 type lockoutEntry struct {
-	failures int
-	lockedAt time.Time
+	failures      int
+	lockedAt      time.Time
+	lastFailureAt time.Time
 }
 
 // tokenRateLimiter combines per-IP sliding window rate limiting with
@@ -158,7 +159,9 @@ func (trl *tokenRateLimiter) checkLockout(clientID string) bool {
 	if len(trl.lockouts) > tokenLimiterPruneThreshold {
 		for k, e := range trl.lockouts {
 			activeLock := !e.lockedAt.IsZero() && now.Before(e.lockedAt.Add(lockoutDuration))
-			if !activeLock {
+
+			recentFailure := now.Before(e.lastFailureAt.Add(lockoutDuration))
+			if !activeLock && !recentFailure {
 				delete(trl.lockouts, k)
 			}
 		}
@@ -198,6 +201,7 @@ func (trl *tokenRateLimiter) recordFailure(ip, clientID string) {
 	}
 
 	entry.failures++
+	entry.lastFailureAt = time.Now()
 
 	if entry.failures >= lockoutThreshold {
 		entry.lockedAt = time.Now()

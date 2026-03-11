@@ -124,7 +124,7 @@ func handleRegistration(s *store, logger *slog.Logger, trustedProxyHeader string
 
 		authMethod := req.TokenEndpointAuthMethod
 		if authMethod == "" {
-			authMethod = "none"
+			authMethod = "client_secret_basic"
 		}
 
 		var clientSecret string

@@ -192,6 +192,7 @@ func handleAuthorizePOST(w http.ResponseWriter, r *http.Request, s *store, users
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 	resource := r.FormValue("resource")
+	scope := r.FormValue("scope")
 
 	client := s.GetClient(clientID)
 	if client == nil {
@@ -273,7 +274,7 @@ func handleAuthorizePOST(w http.ResponseWriter, r *http.Request, s *store, users
 			State:               state,
 			CodeChallenge:       codeChallenge,
 			CodeChallengeMethod: r.FormValue("code_challenge_method"),
-			Scope:               r.FormValue("scope"),
+			Scope:               scope,
 			Resource:            resource,
 			Error:               "Invalid username or password",
 			Title:               loginTitle,
@@ -296,6 +297,11 @@ func handleAuthorizePOST(w http.ResponseWriter, r *http.Request, s *store, users
 		slog.String("ip", ip),
 	)
 
+	var scopes []string
+	if scope != "" {
+		scopes = strings.Fields(scope)
+	}
+
 	code := RandomHex(authCodeBytes)
 	s.SaveCode(&Code{
 		Code:          code,
@@ -304,6 +310,7 @@ func handleAuthorizePOST(w http.ResponseWriter, r *http.Request, s *store, users
 		CodeChallenge: codeChallenge,
 		Resource:      resource,
 		UserID:        userID,
+		Scopes:        scopes,
 		ExpiresAt:     time.Now().Add(codeExpiry),
 	})
 

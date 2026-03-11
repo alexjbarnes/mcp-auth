@@ -44,6 +44,7 @@ type store struct {
 	apiKeys      map[string]*APIKey
 	csrf         map[string]csrfEntry
 	stopGC       chan struct{}
+	stopOnce     sync.Once
 
 	registrationTimes []time.Time
 
@@ -155,9 +156,10 @@ func (s *store) loadFromDisk() {
 	)
 }
 
-// stop terminates the background cleanup goroutine.
+// stop terminates the background cleanup goroutine. Safe to call
+// multiple times.
 func (s *store) stop() {
-	close(s.stopGC)
+	s.stopOnce.Do(func() { close(s.stopGC) })
 }
 
 // gcLoop periodically removes expired tokens, codes, and CSRF tokens.
@@ -179,8 +181,9 @@ func (s *store) gcLoop() {
 func (s *store) cleanup() {
 	now := time.Now()
 
+	var toDelete []string
+
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	for k, ac := range s.codes {
 		if now.After(ac.ExpiresAt) {
@@ -196,15 +199,21 @@ func (s *store) cleanup() {
 				delete(s.refreshIndex, t.RefreshHash)
 			}
 
-			if s.persist != nil {
-				_ = s.persist.DeleteOAuthToken(hash)
-			}
+			toDelete = append(toDelete, hash)
 		}
 	}
 
 	for k, entry := range s.csrf {
 		if now.After(entry.expiresAt) {
 			delete(s.csrf, k)
+		}
+	}
+
+	s.mu.Unlock()
+
+	if s.persist != nil {
+		for _, hash := range toDelete {
+			_ = s.persist.DeleteOAuthToken(hash)
 		}
 	}
 }
@@ -360,20 +369,39 @@ func (s *store) validateRefreshTokenLocked(tokenHash, clientID, resource string)
 	return t
 }
 
+// ValidateRefreshToken performs a read-only check of a refresh token
+// without consuming it. Returns false if the token is invalid.
+func (s *store) ValidateRefreshToken(token, clientID, resource string) bool {
+	hash := HashSecret(token)
+
+	s.mu.RLock()
+	t := s.validateRefreshTokenLocked(hash, clientID, resource)
+	s.mu.RUnlock()
+
+	return t != nil
+}
+
 // ConsumeRefreshToken atomically validates and deletes a refresh token.
 // Returns nil if the token is invalid.
 func (s *store) ConsumeRefreshToken(token, clientID, resource string) *OAuthToken {
-	hash := HashSecret(token)
+	return s.consumeRefreshTokenByHash(HashSecret(token), clientID, resource)
+}
 
+// consumeRefreshTokenByHash is the hash-accepting implementation of
+// ConsumeRefreshToken. Use this when the caller already holds the hash
+// to avoid recomputing it.
+func (s *store) consumeRefreshTokenByHash(hash, clientID, resource string) *OAuthToken {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	t := s.validateRefreshTokenLocked(hash, clientID, resource)
+	if t != nil {
+		delete(s.tokens, hash)
+	}
+	s.mu.Unlock()
+
 	if t == nil {
 		return nil
 	}
-
-	delete(s.tokens, hash)
 
 	if s.persist != nil {
 		_ = s.persist.DeleteOAuthToken(hash)
@@ -433,13 +461,16 @@ func (s *store) RegistrationAllowed() bool {
 // maximum number of registered clients has been reached.
 func (s *store) RegisterClient(ci *OAuthClient) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
-	if len(s.clients) >= maxClients {
+	full := len(s.clients) >= maxClients
+	if !full {
+		s.clients[ci.ClientID] = ci
+	}
+	s.mu.Unlock()
+
+	if full {
 		return false
 	}
-
-	s.clients[ci.ClientID] = ci
 
 	if s.persist != nil {
 		if err := s.persist.SaveOAuthClient(*ci); err != nil && s.logger != nil {
@@ -492,6 +523,46 @@ func (s *store) ConsumeCSRF(token, clientID, redirectURI string) bool {
 	}
 
 	return entry.clientID == clientID && entry.redirectURI == redirectURI
+}
+
+// AuthenticateConfidentialClient checks whether the client is confidential
+// and, if so, validates the secret under a single lock acquisition.
+// Returns (true, false) for public clients (no secret hash),
+// (true, true) for authenticated confidential clients,
+// (false, true) for failed confidential client auth.
+func (s *store) AuthenticateConfidentialClient(clientID, secret string) (ok, confidential bool) {
+	s.mu.RLock()
+	client, exists := s.clients[clientID]
+
+	storedHash := ""
+	if exists {
+		storedHash = client.SecretHash
+	}
+
+	s.mu.RUnlock()
+
+	// Always hash the secret to prevent timing-based enumeration of
+	// which clients are confidential vs public.
+	if s.secretValidator != nil {
+		if !exists || storedHash == "" {
+			return true, false
+		}
+
+		return s.secretValidator(secret, storedHash), true
+	}
+
+	computed := HashSecret(secret)
+
+	if !exists || storedHash == "" {
+		// Burn constant time against a dummy hash so the caller
+		// cannot distinguish public from confidential clients.
+		subtle.ConstantTimeCompare([]byte(computed), []byte(dummyHash))
+		return true, false
+	}
+
+	match := subtle.ConstantTimeCompare([]byte(computed), []byte(storedHash)) == 1
+
+	return match, true
 }
 
 // ValidateClientSecret checks the provided secret against the stored
@@ -707,7 +778,7 @@ func (s *store) ClientAllowsGrant(clientID, grantType string) bool {
 
 	grants := client.GrantTypes
 	if len(grants) == 0 {
-		grants = []string{"authorization_code"}
+		grants = []string{"authorization_code", "refresh_token"}
 	}
 
 	for _, g := range grants {

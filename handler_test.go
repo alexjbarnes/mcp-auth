@@ -1228,7 +1228,7 @@ func TestAuthorize_GET_LoopbackPrefixRedirect(t *testing.T) {
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
-	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=http://127.0.0.1:12345/callback&code_challenge="+challenge, nil)
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=http://127.0.0.1:12345&code_challenge="+challenge, nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1268,7 +1268,7 @@ func TestAuthorize_POST_ValidLogin(t *testing.T) {
 	assert.Contains(t, location, "iss="+url.QueryEscape(testServerURL))
 }
 
-func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
+func TestAuthorize_POST_ScopePropagatedToCode(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
 	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
@@ -1301,10 +1301,10 @@ func TestAuthorize_POST_ScopeNotPropagatedToCode(t *testing.T) {
 	code := u.Query().Get("code")
 	require.NotEmpty(t, code)
 
-	// Scopes from the form should NOT be propagated to the code.
+	// Scopes from the authorize request are propagated through to the code.
 	retrievedCode, _ := s.ConsumeCode(code)
 	require.NotNil(t, retrievedCode)
-	assert.Nil(t, retrievedCode.Scopes, "scopes should not be propagated from authorize form to code")
+	assert.Equal(t, []string{"read", "write", "admin"}, retrievedCode.Scopes)
 }
 
 func TestAuthorize_POST_StateURLEncoded(t *testing.T) {
@@ -2334,6 +2334,87 @@ func TestToken_RefreshMissingToken(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestToken_RefreshConfidentialClientBadSecret_ReturnsInvalidClient(t *testing.T) {
+	s := testStore(t)
+
+	// Register a confidential client with a secret.
+	secret := "my-secret"
+	clientID := "conf-client"
+	s.RegisterPreConfiguredClient(&OAuthClient{
+		ClientID:     clientID,
+		SecretHash:   HashSecret(secret),
+		RedirectURIs: []string{"https://example.com/callback"},
+		GrantTypes:   []string{"authorization_code", "refresh_token"},
+	})
+
+	handler := handleToken(s, testLogger(), testServerURL, "", nil)
+
+	// Create a valid refresh token for this client.
+	refreshToken := RandomHex(32)
+	s.SaveToken(&OAuthToken{
+		Token:     refreshToken,
+		Kind:      "refresh",
+		UserID:    "user1",
+		ClientID:  clientID,
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", refreshToken)
+	form.Set("client_id", clientID)
+	form.Set("client_secret", "wrong-secret")
+
+	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var errResp map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
+	assert.Equal(t, "invalid_client", errResp["error"])
+}
+
+func TestToken_RefreshInvalidTokenBeforeClientAuth(t *testing.T) {
+	s := testStore(t)
+
+	// Register a confidential client.
+	secret := "my-secret"
+	clientID := "conf-client"
+	s.RegisterPreConfiguredClient(&OAuthClient{
+		ClientID:     clientID,
+		SecretHash:   HashSecret(secret),
+		RedirectURIs: []string{"https://example.com/callback"},
+		GrantTypes:   []string{"authorization_code", "refresh_token"},
+	})
+
+	handler := handleToken(s, testLogger(), testServerURL, "", nil)
+
+	// Send a bogus refresh token with a valid client secret. The invalid
+	// token should be detected first, returning "invalid_grant" rather
+	// than proceeding to client authentication.
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", "bogus-token")
+	form.Set("client_id", clientID)
+	form.Set("client_secret", secret)
+
+	req := httptest.NewRequest("POST", "/oauth/token", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var errResp map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&errResp))
+	assert.Equal(t, "invalid_grant", errResp["error"])
+}
+
 func TestToken_RefreshWithoutClientID(t *testing.T) {
 	s := testStore(t)
 	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
@@ -2955,9 +3036,17 @@ func TestToken_DefaultGrantTypeAllowsAuthCode(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-func TestToken_RefreshAlwaysAllowed(t *testing.T) {
+func TestToken_RefreshDeniedWhenNotInGrantTypes(t *testing.T) {
 	s := testStore(t)
-	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
+
+	// Register a client explicitly allowed only authorization_code (no refresh_token).
+	clientID := RandomHex(16)
+	s.RegisterClient(&OAuthClient{
+		ClientID:     clientID,
+		RedirectURIs: []string{"https://example.com/callback"},
+		GrantTypes:   []string{"authorization_code"},
+	})
+
 	handler := handleToken(s, testLogger(), testServerURL, "", nil)
 
 	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
@@ -3001,7 +3090,7 @@ func TestToken_RefreshAlwaysAllowed(t *testing.T) {
 
 	handler(rec2, req2)
 
-	assert.Equal(t, http.StatusOK, rec2.Code)
+	assert.Equal(t, http.StatusBadRequest, rec2.Code)
 }
 
 // Token tests (rate limiting)

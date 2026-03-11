@@ -128,7 +128,7 @@ func handleToken(s *store, logger *slog.Logger, serverURL, trustedProxyHeader st
 			return
 		}
 
-		if req.GrantType != "refresh_token" && req.GrantType != "client_credentials" && req.ClientID != "" && !s.ClientAllowsGrant(req.ClientID, req.GrantType) {
+		if req.GrantType != "client_credentials" && req.ClientID != "" && !s.ClientAllowsGrant(req.ClientID, req.GrantType) {
 			logger.Debug("token request: client not authorized for grant_type",
 				slog.String("grant_type", req.GrantType),
 				slog.String("client_id", req.ClientID),
@@ -163,7 +163,40 @@ func handleRefreshToken(w http.ResponseWriter, s *store, limiter *tokenRateLimit
 		return
 	}
 
-	rt := s.ConsumeRefreshToken(req.RefreshToken, req.ClientID, req.Resource)
+	// Hash once and reuse for both the read-only peek and the consume.
+	refreshHash := HashSecret(req.RefreshToken)
+
+	// Validate refresh token exists before authenticating the client.
+	// This prevents an attacker from probing whether a client_id is
+	// confidential by observing different error codes.
+	s.mu.RLock()
+	peekValid := s.validateRefreshTokenLocked(refreshHash, req.ClientID, req.Resource) != nil
+	s.mu.RUnlock()
+
+	if !peekValid {
+		limiter.recordFailure(ip, req.ClientID)
+		logger.Debug("refresh token validation failed",
+			slog.String("client_id", req.ClientID),
+			slog.String("ip", ip),
+		)
+		writeJSONError(w, http.StatusBadRequest, "invalid_grant", "invalid or expired refresh token")
+
+		return
+	}
+
+	ok, confidential := s.AuthenticateConfidentialClient(req.ClientID, req.ClientSecret)
+	if confidential && !ok {
+		limiter.recordFailure(ip, req.ClientID)
+		logger.Warn("refresh token: confidential client authentication failed",
+			slog.String("client_id", req.ClientID),
+			slog.String("ip", ip),
+		)
+		writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
+
+		return
+	}
+
+	rt := s.consumeRefreshTokenByHash(refreshHash, req.ClientID, req.Resource)
 	if rt == nil {
 		limiter.recordFailure(ip, req.ClientID)
 		logger.Debug("refresh token validation failed",
@@ -342,6 +375,18 @@ func handleAuthorizationCode(w http.ResponseWriter, s *store, limiter *tokenRate
 			slog.String("ip", ip),
 		)
 		writeJSONError(w, http.StatusBadRequest, "invalid_grant", "client_id mismatch")
+
+		return
+	}
+
+	ok, confidential := s.AuthenticateConfidentialClient(req.ClientID, req.ClientSecret)
+	if confidential && !ok {
+		limiter.recordFailure(ip, req.ClientID)
+		logger.Warn("authorization code: confidential client authentication failed",
+			slog.String("client_id", req.ClientID),
+			slog.String("ip", ip),
+		)
+		writeJSONError(w, http.StatusUnauthorized, "invalid_client", "client authentication failed")
 
 		return
 	}
