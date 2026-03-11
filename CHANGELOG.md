@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.2.0
+
+### Breaking changes
+
+- Dynamic client registration now defaults `token_endpoint_auth_method` to `client_secret_basic` per RFC 7591 (was `none`). Clients that need public registration must explicitly set `token_endpoint_auth_method` to `none` in their registration request.
+- Refresh token grants are now subject to `grant_types` enforcement. Clients must include `refresh_token` in their registered grant types. Clients registered without explicit grant types default to `["authorization_code", "refresh_token"]` for backward compatibility.
+
+### Security fixes
+
+- Use rightmost IP from proxy header (`X-Forwarded-For`) to prevent rate limit bypass via client-controlled leftmost entries.
+- Enforce path matching in loopback redirect URI validation per RFC 8252. Previously only scheme and hostname were compared, allowing any path when loopback matching was used.
+- Authenticate confidential clients during authorization code and refresh token exchanges. Previously clients with a `secret_hash` were not required to present their secret.
+- Validate refresh token before authenticating the client in the refresh flow, preventing information leakage about whether a client is confidential.
+- Combine client lookup and secret validation into a single lock acquisition (`AuthenticateConfidentialClient`), eliminating a TOCTOU race where the client could be modified between the two calls.
+- Preserve partial failure counts during rate limiter pruning. Previously an attacker could flush a target client's failure count by flooding with dummy client IDs.
+- Use timing-safe dummy comparison in `AuthenticateConfidentialClient` for unknown and public clients, consistent with `ValidateClientSecret`.
+- Raw access tokens and refresh tokens are scrubbed before persistence so plaintext secrets never reach disk.
+
+### Bug fixes
+
+- Propagate scopes from the authorize request through to the authorization code and issued tokens.
+- Normalize empty path to `/` in loopback redirect matching so `http://127.0.0.1:8080` matches `http://127.0.0.1/` and vice versa.
+- Release mutex before persistence I/O in `cleanup`, `ConsumeRefreshToken`, and `RegisterClient` to avoid blocking concurrent token operations behind disk latency.
+- Prevent double-close panic on `store.stop()` by wrapping channel close in `sync.Once`.
+
 ## v0.1.0
 
 ### Features
