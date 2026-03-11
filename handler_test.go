@@ -1228,7 +1228,7 @@ func TestAuthorize_GET_LoopbackPrefixRedirect(t *testing.T) {
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
-	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=http://127.0.0.1:12345/callback&code_challenge="+challenge, nil)
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=http://127.0.0.1:12345&code_challenge="+challenge, nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)

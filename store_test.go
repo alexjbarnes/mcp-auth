@@ -778,17 +778,22 @@ func TestIsLoopbackRedirect_InvalidRegisteredPrefix(t *testing.T) {
 
 func TestIsLoopbackRedirect_BothInvalid(t *testing.T) {
 	ok := isLoopbackRedirect("not a url", "also not a url")
-	// Both parse as paths with empty scheme/hostname, so they match
-	assert.True(t, ok)
+	// Garbage URLs have different paths so they should not match.
+	assert.False(t, ok)
 }
 
 func TestIsLoopbackRedirect_ValidMatch(t *testing.T) {
-	ok := isLoopbackRedirect("http://127.0.0.1:8080/callback", "http://127.0.0.1")
+	ok := isLoopbackRedirect("http://127.0.0.1:8080/callback", "http://127.0.0.1/callback")
 	assert.True(t, ok)
 }
 
+func TestIsLoopbackRedirect_PathMismatch(t *testing.T) {
+	ok := isLoopbackRedirect("http://127.0.0.1:8080/evil", "http://127.0.0.1/callback")
+	assert.False(t, ok)
+}
+
 func TestIsLoopbackRedirect_SchemeMismatch(t *testing.T) {
-	ok := isLoopbackRedirect("https://127.0.0.1:8080/callback", "http://127.0.0.1")
+	ok := isLoopbackRedirect("https://127.0.0.1:8080/callback", "http://127.0.0.1/callback")
 	assert.False(t, ok)
 }
 

@@ -153,7 +153,7 @@ func validateRedirectURI(client *OAuthClient, redirectURI string) bool {
 			return true
 		}
 
-		if isLocalhostPrefix(registered) && isLoopbackRedirect(redirectURI, registered) {
+		if isLoopbackRegistered(registered) && isLoopbackRedirect(redirectURI, registered) {
 			return true
 		}
 	}
@@ -161,10 +161,15 @@ func validateRedirectURI(client *OAuthClient, redirectURI string) bool {
 	return false
 }
 
-// isLocalhostPrefix returns true if the URI is an HTTP loopback prefix
-// without a port or path, suitable for prefix matching per RFC 8252.
-func isLocalhostPrefix(uri string) bool {
-	return uri == "http://127.0.0.1" || uri == "http://[::1]"
+// isLoopbackRegistered returns true if the registered URI is an HTTP
+// loopback URI eligible for dynamic-port matching per RFC 8252.
+func isLoopbackRegistered(uri string) bool {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+
+	return u.Scheme == "http" && isLoopbackHost(u.Hostname())
 }
 
 // isLoopbackHost returns true if the hostname is a literal loopback IP.
@@ -174,19 +179,20 @@ func isLoopbackHost(host string) bool {
 }
 
 // isLoopbackRedirect checks if redirectURI is a valid loopback redirect
-// matching the registered prefix URI.
-func isLoopbackRedirect(redirectURI, registeredPrefix string) bool {
+// matching the registered URI per RFC 8252: scheme and hostname must
+// match, path must match, but port may differ.
+func isLoopbackRedirect(redirectURI, registered string) bool {
 	ru, err := url.Parse(redirectURI)
 	if err != nil {
 		return false
 	}
 
-	pu, err := url.Parse(registeredPrefix)
+	reg, err := url.Parse(registered)
 	if err != nil {
 		return false
 	}
 
-	return ru.Scheme == pu.Scheme && ru.Hostname() == pu.Hostname()
+	return ru.Scheme == reg.Scheme && ru.Hostname() == reg.Hostname() && ru.Path == reg.Path
 }
 
 // validateRedirectScheme checks that a redirect URI uses HTTPS or targets
