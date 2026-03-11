@@ -99,8 +99,8 @@ func remoteIP(r *http.Request) string {
 func extractIP(r *http.Request, trustedProxyHeader string) string {
 	if trustedProxyHeader != "" {
 		if val := r.Header.Get(trustedProxyHeader); val != "" {
-			if idx := strings.Index(val, ","); idx != -1 {
-				val = strings.TrimSpace(val[:idx])
+			if idx := strings.LastIndex(val, ","); idx != -1 {
+				val = strings.TrimSpace(val[idx+1:])
 			}
 
 			return strings.TrimSpace(val)
