@@ -1071,7 +1071,7 @@ func TestAuthorize_GET_ShowsLoginForm(t *testing.T) {
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
-	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge, nil)
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge+"&code_challenge_method=S256", nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1180,13 +1180,31 @@ func TestAuthorize_GET_ClickjackHeaders(t *testing.T) {
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
-	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge, nil)
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge+"&code_challenge_method=S256", nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
 
 	assert.Equal(t, "DENY", rec.Header().Get("X-Frame-Options"))
 	assert.Equal(t, "frame-ancestors 'none'", rec.Header().Get("Content-Security-Policy"))
+}
+
+func TestAuthorize_GET_MissingCodeChallengeMethod(t *testing.T) {
+	s := testStore(t)
+	clientID := registerTestClient(t, s, []string{"https://example.com/callback"})
+	users := NewMapAuthenticator(map[string]string{"testuser": "password123"})
+	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
+
+	challenge := pkceChallenge("test-verifier")
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge, nil)
+	rec := httptest.NewRecorder()
+
+	handler(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	location := rec.Header().Get("Location")
+	assert.Contains(t, location, "error=invalid_request")
+	assert.Contains(t, location, "code_challenge_method")
 }
 
 func TestAuthorize_GET_ResourceParameter(t *testing.T) {
@@ -1196,7 +1214,7 @@ func TestAuthorize_GET_ResourceParameter(t *testing.T) {
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
-	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge+"&resource="+url.QueryEscape(testServerURL), nil)
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge+"&code_challenge_method=S256&resource="+url.QueryEscape(testServerURL), nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1211,7 +1229,7 @@ func TestAuthorize_GET_WrongResource(t *testing.T) {
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
-	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge+"&resource=https://wrong.example.com", nil)
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=https://example.com/callback&code_challenge="+challenge+"&code_challenge_method=S256&resource=https://wrong.example.com", nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -1228,7 +1246,7 @@ func TestAuthorize_GET_LoopbackPrefixRedirect(t *testing.T) {
 	handler := handleAuthorize(s, users, testLogger(), testServerURL, "Sign In", "Sign in to grant access to your account.", "", nil)
 
 	challenge := pkceChallenge("test-verifier")
-	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=http://127.0.0.1:12345&code_challenge="+challenge, nil)
+	req := httptest.NewRequest("GET", "/oauth/authorize?response_type=code&client_id="+clientID+"&redirect_uri=http://127.0.0.1:12345&code_challenge="+challenge+"&code_challenge_method=S256", nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)

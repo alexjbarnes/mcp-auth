@@ -137,7 +137,7 @@ func handleAuthorizeGET(w http.ResponseWriter, r *http.Request, s *store, logger
 	}
 
 	codeChallengeMethod := q.Get("code_challenge_method")
-	if codeChallengeMethod != "" && codeChallengeMethod != "S256" {
+	if codeChallengeMethod != "S256" {
 		redirectWithError(w, r, redirectURI, state, "invalid_request", "only S256 code_challenge_method is supported")
 		return
 	}
