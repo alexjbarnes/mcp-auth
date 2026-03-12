@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1
+
+### Bug fixes
+
+- Reject authorization requests where `code_challenge_method` is missing. The server only supports S256, but an omitted method defaults to `plain` per RFC 7636, which silently passed authorization then failed at token exchange with a confusing `invalid_grant` error.
+
 ## v0.2.0
 
 ### Breaking changes
