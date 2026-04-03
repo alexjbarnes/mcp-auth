@@ -44,7 +44,7 @@ jobs:
       # Badge is powered by a Gist + shields.io endpoint badge.
       - name: Update coverage badge
         if: inputs.update-badge
-        uses: schneegans/dynamic-badges-action@v1.7.0
+        uses: schneegans/dynamic-badges-action@v1.8.0
         with:
           auth: ${{ secrets.GIST_TOKEN }}
           gistID: 29da905d4adbb295641227b6b4858ae1
